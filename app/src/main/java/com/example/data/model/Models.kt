@@ -16,7 +16,10 @@ data class User(
     val customTag: String = "#0001",
     val bannerColor: String = "#5865F2",
     val bio: String = "Hey there! I am using Vortex.",
-    val nitroActive: Boolean = true, // Free Discord Nitro for everyone!
+    val status: String = "online", // online, idle, dnd, invisible
+    val nitroActive: Boolean = false, // Earned via rewarded monthly ad
+    val nitroExpiresAt: Timestamp? = null,
+    val boostsAvailable: Int = 0,
     val lowBandwidthMode: Boolean = false,
     val audioBitrateKbps: Double = 64.0,
     @ServerTimestamp val createdAt: Timestamp? = null,
@@ -33,7 +36,9 @@ data class Server(
     val bannerUrl: String = "",
     val inviteCode: String = "",
     val memberIds: List<String> = emptyList(),
-    val boostLevel: Double = 3.0, // Free Level 3 Nitro Boost!
+    val boostCount: Int = 0, // Boost count earned via watching ads
+    val boostLevel: Int = 0, // 0, 1, 2, or 3
+    val pinnedMessageIds: List<String> = emptyList(),
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 )

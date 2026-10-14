@@ -164,8 +164,8 @@ fun AuthScreen(
                     FeatureHighlightRow(
                         icon = Icons.Default.Diamond,
                         tint = DiscordNitroGold,
-                        title = "100% Free Nitro Perks",
-                        subtitle = "500MB file uploads, HD streaming, Server Boost Lvl 3, custom emojis"
+                        title = "Ad-Supported Nitro & Boost Perks",
+                        subtitle = "500MB uploads, HD streaming, Server Boosts, and custom discriminator tags"
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     FeatureHighlightRow(

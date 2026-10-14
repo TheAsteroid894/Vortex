@@ -425,6 +425,66 @@ class VortexViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // Rewarded Ads state (ONLY shown during voluntary Nitro / Boost requests)
+    private val _isAdPlaying = MutableStateFlow(false)
+    val isAdPlaying: StateFlow<Boolean> = _isAdPlaying.asStateFlow()
+
+    private val _adCountdown = MutableStateFlow(5)
+    val adCountdown: StateFlow<Int> = _adCountdown.asStateFlow()
+
+    private val _adRewardType = MutableStateFlow<String?>(null) // "nitro" or "boost:<serverId>"
+    val adRewardType: StateFlow<String?> = _adRewardType.asStateFlow()
+
+    fun startRewardedAd(rewardType: String) {
+        _adRewardType.value = rewardType
+        _adCountdown.value = 5
+        _isAdPlaying.value = true
+        viewModelScope.launch {
+            for (i in 5 downTo 1) {
+                _adCountdown.value = i
+                kotlinx.coroutines.delay(1000)
+            }
+            _adCountdown.value = 0
+        }
+    }
+
+    fun completeRewardedAd() {
+        val reward = _adRewardType.value
+        _isAdPlaying.value = false
+        _adRewardType.value = null
+        if (reward == null) return
+
+        viewModelScope.launch {
+            try {
+                if (reward == "nitro") {
+                    repository.claimNitroWithAd()
+                    _statusMessage.value = "🎉 30 Days of Vortex Nitro Activated!"
+                } else if (reward.startsWith("boost:")) {
+                    val serverId = reward.removePrefix("boost:")
+                    repository.boostServerWithAd(serverId)
+                    _statusMessage.value = "🚀 Server successfully Boosted +1!"
+                }
+            } catch (e: Exception) {
+                _statusMessage.value = "Failed to apply reward: ${e.message}"
+            }
+        }
+    }
+
+    fun dismissRewardedAd() {
+        _isAdPlaying.value = false
+        _adRewardType.value = null
+    }
+
+    fun updateUserStatus(status: String) {
+        viewModelScope.launch {
+            try {
+                repository.updateUserStatus(status)
+            } catch (e: Exception) {
+                _statusMessage.value = "Failed to update status: ${e.message}"
+            }
+        }
+    }
+
     fun clearStatusMessage() {
         _statusMessage.value = null
     }

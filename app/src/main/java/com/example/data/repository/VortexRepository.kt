@@ -73,8 +73,11 @@ class VortexRepository(private val db: FirebaseFirestore) {
                 photoUrl = firebaseUser.photoUrl?.toString() ?: "",
                 customTag = "#" + (1000 + (Math.random() * 8999).toInt()),
                 bannerColor = "#5865F2",
-                bio = "Free Nitro Supporter 🚀",
-                nitroActive = true,
+                bio = "Hey there! I am using Vortex.",
+                status = "online",
+                nitroActive = false,
+                nitroExpiresAt = null,
+                boostsAvailable = 0,
                 lowBandwidthMode = false,
                 audioBitrateKbps = 64.0
             )
@@ -87,7 +90,9 @@ class VortexRepository(private val db: FirebaseFirestore) {
                 "customTag" to newUser.customTag,
                 "bannerColor" to newUser.bannerColor,
                 "bio" to newUser.bio,
-                "nitroActive" to newUser.nitroActive,
+                "status" to "online",
+                "nitroActive" to false,
+                "boostsAvailable" to 0,
                 "lowBandwidthMode" to newUser.lowBandwidthMode,
                 "audioBitrateKbps" to newUser.audioBitrateKbps,
                 "createdAt" to FieldValue.serverTimestamp(),
@@ -125,6 +130,61 @@ class VortexRepository(private val db: FirebaseFirestore) {
         )
         try {
             userRef.update(updates).await()
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, userRef.path)
+            throw e
+        }
+    }
+
+    suspend fun claimNitroWithAd() {
+        val uid = requireUserId()
+        val userRef = db.collection("users").document(uid)
+        val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
+        val expiresAt = com.google.firebase.Timestamp(java.util.Date(System.currentTimeMillis() + thirtyDaysMs))
+        val updates = mapOf(
+            "nitroActive" to true,
+            "nitroExpiresAt" to expiresAt,
+            "boostsAvailable" to 2,
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+        try {
+            userRef.update(updates).await()
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, userRef.path)
+            throw e
+        }
+    }
+
+    suspend fun boostServerWithAd(serverId: String) {
+        val uid = requireUserId()
+        val sRef = db.collection("servers").document(serverId)
+        val snapshot = sRef.get().await()
+        val currentBoosts = snapshot.getLong("boostCount") ?: 0L
+        val newBoosts = currentBoosts + 1
+        val newLevel = when {
+            newBoosts >= 14 -> 3
+            newBoosts >= 7 -> 2
+            newBoosts >= 2 -> 1
+            else -> 0
+        }
+        val updates = mapOf(
+            "boostCount" to newBoosts,
+            "boostLevel" to newLevel,
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+        try {
+            sRef.update(updates).await()
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, sRef.path)
+            throw e
+        }
+    }
+
+    suspend fun updateUserStatus(status: String) {
+        val uid = requireUserId()
+        val userRef = db.collection("users").document(uid)
+        try {
+            userRef.update("status", status, "updatedAt", FieldValue.serverTimestamp()).await()
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.UPDATE, userRef.path)
             throw e
@@ -183,7 +243,7 @@ class VortexRepository(private val db: FirebaseFirestore) {
                 bannerUrl = bannerUrl,
                 inviteCode = inviteCode,
                 memberIds = listOf(uid),
-                boostLevel = 3.0
+                boostLevel = 3
             )
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.CREATE, serverDoc.path)

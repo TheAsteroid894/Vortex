@@ -466,8 +466,25 @@ private fun ChannelTypeOptionCard(
 
 @Composable
 fun NitroShowcaseDialog(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onWatchAdForNitro: () -> Unit = {},
+    onWatchAdForBoost: () -> Unit = {}
 ) {
+    var showAdDialog by remember { mutableStateOf<String?>(null) }
+    var rewardClaimedNotice by remember { mutableStateOf<String?>(null) }
+
+    if (showAdDialog != null) {
+        AdRewardDialog(
+            rewardType = showAdDialog!!,
+            onDismiss = { showAdDialog = null },
+            onRewardEarned = { type ->
+                showAdDialog = null
+                rewardClaimedNotice = if (type == "nitro") "1 Month Vortex Nitro activated!" else "Server boosted for 30 days!"
+                if (type == "nitro") onWatchAdForNitro() else onWatchAdForBoost()
+            }
+        )
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = VortexSurfaceDark,
@@ -481,7 +498,7 @@ fun NitroShowcaseDialog(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Vortex Nitro (100% Free)",
+                    text = "Nitro & Server Boosts",
                     color = VortexTextPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
@@ -494,51 +511,221 @@ fun NitroShowcaseDialog(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
+                if (rewardClaimedNotice != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(DiscordGreen.copy(alpha = 0.2f))
+                            .border(1.dp, DiscordGreen, RoundedCornerShape(8.dp))
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = "🎉 $rewardClaimedNotice",
+                            color = DiscordGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
                 Text(
-                    text = "All Discord Nitro features unlocked permanently with zero subscription fees:",
+                    text = "Watch a short partner sponsor video to unlock 1 Month of full Nitro and Server Boost perks. Ads are NEVER shown in chat, servers, or calls.",
                     color = VortexTextMuted,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    lineHeight = 17.sp
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Watch Ad for Nitro Button
+                Button(
+                    onClick = { showAdDialog = "nitro" },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = DiscordNitroPink),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("🎬 Watch Ad to Unlock 1 Month Nitro", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Watch Ad for Server Boost Button
+                Button(
+                    onClick = { showAdDialog = "boost" },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = DiscordBlurple),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("🚀 Watch Ad to Boost Server (30 Days)", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
                 Spacer(modifier = Modifier.height(14.dp))
 
                 NitroPerkItem(
                     emoji = "🚀",
                     title = "500MB Large File Uploads",
-                    desc = "Share high-resolution 4K videos, massive game recordings, zip archives & media seamlessly."
+                    desc = "Share high-resolution 4K clips, game recordings, and massive zip archives seamlessly."
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 NitroPerkItem(
                     emoji = "📹",
                     title = "HD 1080p 60FPS Streaming",
-                    desc = "Broadcast crystal-clear screens & video stages with minimum latency and smooth framerates."
+                    desc = "Crisp screen broadcasts and video stages with ultra-low latency."
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 NitroPerkItem(
                     emoji = "💎",
-                    title = "Level 3 Server Boost Included",
-                    desc = "Every server you create automatically unlocks VIP voice quality and customized banners."
+                    title = "Server Boost Level 3 Included",
+                    desc = "384kbps high-fidelity audio and custom server vanity links."
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 NitroPerkItem(
                     emoji = "✨",
-                    title = "Custom Emojis & Animated Stickers",
-                    desc = "Use custom and animated reactions everywhere without server restrictions."
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                NitroPerkItem(
-                    emoji = "🏷️",
-                    title = "Custom Discriminator Tag",
-                    desc = "Pick your own unique tag (e.g. #1337 or #0001) and custom profile banner."
+                    title = "Custom Discriminator & Banner",
+                    desc = "Personalize your @handle, custom tag, and header banner color."
                 )
             }
         },
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = DiscordNitroPink),
+                colors = ButtonDefaults.buttonColors(containerColor = VortexInputDark),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("Enjoy Free Perks!", color = Color.White)
+                Text("Close", color = VortexTextPrimary)
+            }
+        }
+    )
+}
+
+@Composable
+fun AdRewardDialog(
+    rewardType: String,
+    onDismiss: () -> Unit,
+    onRewardEarned: (String) -> Unit
+) {
+    var secondsLeft by remember { mutableStateOf(15) }
+    var isCompleted by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (secondsLeft > 0) {
+            kotlinx.coroutines.delay(1000)
+            secondsLeft--
+        }
+        isCompleted = true
+    }
+
+    AlertDialog(
+        onDismissRequest = {
+            if (isCompleted) onDismiss()
+        },
+        containerColor = Color(0xFF111214),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "SPONSORED PARTNER AD",
+                    color = DiscordNitroGold,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (isCompleted) "Ready! 🎉" else "${secondsLeft}s",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF1A1C23)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "🎮", fontSize = 38.sp)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "NordVPN • Secure Gaming",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Ultrafast encrypted gaming routes & DDoS defense",
+                            color = VortexTextMuted,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Progress Bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color(0xFF2B2D31))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction = (15 - secondsLeft) / 15f)
+                            .height(6.dp)
+                            .background(DiscordBlurple)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = if (isCompleted)
+                        "Reward unlocked! Claim your ${if (rewardType == "nitro") "1 Month Nitro" else "Server Boost"} below."
+                    else
+                        "Watching sponsor video to unlock ${if (rewardType == "nitro") "1 Month Nitro" else "Server Boost"}...",
+                    color = if (isCompleted) DiscordGreen else VortexTextMuted,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onRewardEarned(rewardType) },
+                enabled = isCompleted,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DiscordGreen,
+                    disabledContainerColor = VortexInputDark
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = if (isCompleted) "Claim 30 Days!" else "Watch (${secondsLeft}s)",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            if (isCompleted) {
+                OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
+                    Text("Close", color = VortexTextMuted)
+                }
             }
         }
     )
@@ -609,6 +796,29 @@ fun UserSettingsDialog(
         "#ED4245" to "Red"
     )
 
+    var showAdDialog by remember { mutableStateOf<String?>(null) }
+    var adRewardNotice by remember { mutableStateOf<String?>(null) }
+    var legalDialogContent by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+    if (showAdDialog != null) {
+        AdRewardDialog(
+            rewardType = showAdDialog!!,
+            onDismiss = { showAdDialog = null },
+            onRewardEarned = { type ->
+                showAdDialog = null
+                adRewardNotice = if (type == "nitro") "1 Month Nitro activated!" else "Server boosted for 30 days!"
+            }
+        )
+    }
+
+    if (legalDialogContent != null) {
+        LegalViewerDialog(
+            title = legalDialogContent!!.first,
+            content = legalDialogContent!!.second,
+            onDismiss = { legalDialogContent = null }
+        )
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = VortexSurfaceDark,
@@ -669,7 +879,7 @@ fun UserSettingsDialog(
                 OutlinedTextField(
                     value = customTag,
                     onValueChange = { customTag = it },
-                    label = { Text("CUSTOM TAG (FREE NITRO)") },
+                    label = { Text("CUSTOM TAG") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = TextFieldDefaults.colors(
@@ -911,6 +1121,150 @@ fun UserSettingsDialog(
                     )
                 }
 
+                if (adRewardNotice != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(DiscordGreen.copy(alpha = 0.2f))
+                            .border(1.dp, DiscordGreen, RoundedCornerShape(8.dp))
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = "🎉 $adRewardNotice",
+                            color = DiscordGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Nitro & Server Boosts through Ads
+                Text(
+                    text = "NITRO & SERVER BOOSTS (AD-SUPPORTED)",
+                    color = VortexTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = { showAdDialog = "nitro" },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = DiscordNitroPink),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("🎬 Watch Ad to Unlock 1 Month Nitro", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Button(
+                    onClick = { showAdDialog = "boost" },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = DiscordBlurple),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("🚀 Watch Ad to Boost Server (30 Days)", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Zero-Distraction Guarantee: Ads are only shown when watching to claim Nitro/Boost rewards. Chat, servers & calls are 100% ad-free.",
+                    color = VortexTextMuted,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Legal Pages
+                Text(
+                    text = "LEGAL & POLICIES",
+                    color = VortexTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            legalDialogContent = "Terms of Service" to """
+                                1. AGREEMENT TO TERMS
+                                By using Vortex across Android, Web, or API clients, you agree to these Terms of Service.
+
+                                2. PRIVACY & ZERO-KNOWLEDGE ARCHITECTURE
+                                Vortex provides an encrypted, low-bandwidth communication service. Encrypted messages are sealed using client-side AES-GCM cryptography. We cannot read, decrypt, or sell your encrypted transmissions.
+
+                                3. USER CONTENT & OWNERSHIP
+                                You retain ownership of all intellectual property in content, messages, and files transmitted through Vortex.
+
+                                4. AD-SUPPORTED REWARDS MODEL
+                                Sponsored advertisements are only presented when you explicitly request to watch a reward ad to claim monthly Nitro or Server Boosts. No ads are injected into chat channels.
+
+                                5. PROHIBITED CONDUCT
+                                Harassment, unauthorized access, malware distribution, and illegal content are strictly prohibited and result in immediate termination of access.
+                            """.trimIndent()
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Terms", fontSize = 11.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            legalDialogContent = "Privacy Policy" to """
+                                1. INFORMATION WE STORE
+                                We practice strict data minimization. We store your chosen display name, username (@handle), custom tag, bio, and client appearance preferences.
+
+                                2. END-TO-END CRYPTOGRAPHY
+                                Encrypted channel messages are encrypted on your device using AES-256-GCM before transmission. Database records contain only ciphertexts (vtx_enc:).
+
+                                3. ADVERTISING & PRIVACY
+                                We do NOT track your behavior, sell personal data, or inject banner ads. Ads are strictly user-initiated for rewards.
+
+                                4. DATA SECURITY & RIGHTS
+                                Data is stored with Firestore security rules enforcing per-user access control. You may update or delete your profile at any time.
+                            """.trimIndent()
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Privacy", fontSize = 11.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            legalDialogContent = "Community Guidelines" to """
+                                1. RESPECTFUL COMMUNITY
+                                Treat all members with respect. Hate speech, harassment, intimidation, and abuse are strictly forbidden.
+
+                                2. SAFETY & PROTECTION
+                                Child endangerment, self-harm promotion, and illegal threats will lead to permanent account removal.
+
+                                3. ANTI-SPAM
+                                Automated flooding, spamming, and bot exploitation are prohibited.
+
+                                4. SERVER MODERATION
+                                Server owners have full discretion to moderate their communities and remove disruptive members.
+                            """.trimIndent()
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Guidelines", fontSize = 11.sp)
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Sign Out Button
@@ -955,6 +1309,53 @@ fun UserSettingsDialog(
 }
 
 @Composable
+fun LegalViewerDialog(
+    title: String,
+    content: String,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = VortexSurfaceDark,
+        title = {
+            Text(
+                text = title,
+                color = VortexTextPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(350.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(VortexInputDark)
+                    .padding(14.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = content,
+                    color = VortexTextPrimary,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = DiscordBlurple),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Close", color = Color.White)
+            }
+        }
+    )
+}
+
+@Composable
 fun AttachmentPickerDialog(
     onDismiss: () -> Unit,
     onSendAttachment: (Attachment) -> Unit
@@ -982,7 +1383,7 @@ fun AttachmentPickerDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Seamless uploads up to 500MB (Free Nitro Perk):",
+                    text = "Seamless uploads up to 500MB:",
                     color = VortexTextMuted,
                     fontSize = 13.sp
                 )
@@ -1099,8 +1500,8 @@ private fun MediaSampleTile(
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "$size • Free Nitro Upload",
-                color = DiscordNitroGold,
+                text = "$size • Media Upload",
+                color = VortexTextMuted,
                 fontSize = 11.sp
             )
         }
@@ -1183,7 +1584,7 @@ fun ServerSettingsDialog(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Free Nitro Perk: 384Kbps Audio, 1080p 60FPS Streams",
+                            text = "Boosted Perks: 384Kbps Audio, 1080p 60FPS Streams",
                             color = VortexTextMuted,
                             fontSize = 11.sp
                         )

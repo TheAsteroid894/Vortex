@@ -188,71 +188,14 @@ fun ChatScreen(
                 Spacer(modifier = Modifier.width(4.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = channel?.name ?: "select-a-channel",
-                            color = VortexTextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        // E2EE Badge
-                        if (isE2EEActive) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(DiscordGreen.copy(alpha = 0.2f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Shield,
-                                        contentDescription = "E2EE Active",
-                                        tint = DiscordGreen,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = "E2EE",
-                                        color = DiscordGreen,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-
-                        // Low Bandwidth Mode Badge
-                        if (currentUser?.lowBandwidthMode == true) {
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFF00B0F4).copy(alpha = 0.2f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Bolt,
-                                        contentDescription = "Data Saver",
-                                        tint = Color(0xFF00B0F4),
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text(
-                                        text = "DATA SAVER",
-                                        color = Color(0xFF00B0F4),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-
+                    Text(
+                        text = channel?.name ?: "select-a-channel",
+                        color = VortexTextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     if (!channel?.topic.isNullOrBlank()) {
                         Text(
                             text = channel?.topic ?: "",
@@ -262,18 +205,6 @@ fun ChatScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                }
-
-                // Nitro Badge Button
-                IconButton(
-                    onClick = onOpenNitroShowcase,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Diamond,
-                        contentDescription = "Free Nitro Perks",
-                        tint = DiscordNitroGold
-                    )
                 }
             }
         }
@@ -615,8 +546,8 @@ private fun MessageItem(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "$fileSize • 500MB Free Nitro Limit",
-                                    color = DiscordNitroGold,
+                                    text = "$fileSize • High-Speed Transfer",
+                                    color = VortexTextMuted,
                                     fontSize = 11.sp
                                 )
                             }
