@@ -221,7 +221,15 @@ fun MainAppContent(
             onDismiss = { showAttachmentPickerDialog = false },
             onSendAttachment = { att ->
                 viewModel.sendMessage(
-                    content = "Shared attachment: ${att.fileName}",
+                    content = "Shared file: ${att.fileName}",
+                    isEncrypted = selectedChannel?.isEncrypted ?: true,
+                    attachments = listOf(att)
+                )
+            },
+            onSendWithCaption = { att, caption ->
+                val finalContent = if (caption.isNotBlank()) caption else "Shared file: ${att.fileName}"
+                viewModel.sendMessage(
+                    content = finalContent,
                     isEncrypted = selectedChannel?.isEncrypted ?: true,
                     attachments = listOf(att)
                 )

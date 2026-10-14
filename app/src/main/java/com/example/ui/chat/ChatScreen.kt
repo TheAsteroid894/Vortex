@@ -1,5 +1,14 @@
 package com.example.ui.chat
 
+import android.content.Intent
+import android.net.Uri
+import android.util.Base64
+import android.widget.Toast
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import java.io.File
+import java.io.FileOutputStream
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -501,13 +511,19 @@ private fun MessageItem(
                 lineHeight = 19.sp
             )
 
-            // Large File / Media Attachments (Free Nitro Perk)
+            // Real File & Media Attachments
             if (message.attachments.isNotEmpty()) {
+                val context = LocalContext.current
                 Spacer(modifier = Modifier.height(6.dp))
                 message.attachments.forEach { attMap ->
-                    val fileName = attMap["fileName"] as? String ?: "large_file.dat"
-                    val fileSize = attMap["fileSizeFormatted"] as? String ?: "45 MB"
-                    val isLarge = attMap["isLargeMedia"] as? Boolean ?: true
+                    val fileName = attMap["fileName"] as? String ?: "attachment"
+                    val fileSize = attMap["fileSizeFormatted"] as? String ?: ""
+                    val mediaUrl = attMap["mediaUrl"] as? String ?: ""
+                    val fileType = attMap["fileType"] as? String ?: ""
+                    val isImg = (attMap["isImage"] as? Boolean) == true ||
+                            fileType.startsWith("image/") ||
+                            mediaUrl.startsWith("data:image/") ||
+                            fileName.lowercase().matches(".*\\.(png|jpg|jpeg|webp|gif|svg)$".toRegex())
 
                     Surface(
                         modifier = Modifier
@@ -517,46 +533,80 @@ private fun MessageItem(
                         color = VortexInputDark,
                         border = androidx.compose.foundation.BorderStroke(1.dp, VortexAccentBorder)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (isImg && mediaUrl.isNotBlank()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 120.dp, max = 220.dp)
+                                        .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
+                                        .background(androidx.compose.ui.graphics.Color.Black)
+                                        .clickable {
+                                            openOrShareAttachment(context, fileName, mediaUrl, fileType)
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    AsyncImage(
+                                        model = mediaUrl,
+                                        contentDescription = fileName,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                }
+                            }
+
+                            Row(
                                 modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(DiscordBlurple.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        openOrShareAttachment(context, fileName, mediaUrl, fileType)
+                                    }
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.InsertDriveFile,
-                                    contentDescription = "File",
-                                    tint = DiscordBlurple,
-                                    modifier = Modifier.size(22.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(DiscordBlurple.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (isImg) Icons.Default.Mood else Icons.Default.InsertDriveFile,
+                                        contentDescription = "File",
+                                        tint = DiscordBlurple,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = fileName,
+                                        color = VortexTextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = if (fileSize.isNotBlank()) "$fileSize • High-Speed Transfer" else "File Attachment",
+                                        color = VortexTextMuted,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        openOrShareAttachment(context, fileName, mediaUrl, fileType)
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = "Download / Open File",
+                                        tint = DiscordBlurple,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = fileName,
-                                    color = VortexTextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "$fileSize • High-Speed Transfer",
-                                    color = VortexTextMuted,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = "Download File",
-                                tint = VortexTextMuted,
-                                modifier = Modifier.size(20.dp)
-                            )
                         }
                     }
                 }
@@ -600,3 +650,49 @@ private fun MessageItem(
         }
     }
 }
+
+private fun openOrShareAttachment(
+    context: android.content.Context,
+    fileName: String,
+    mediaUrl: String,
+    fileType: String
+) {
+    if (mediaUrl.isBlank()) {
+        Toast.makeText(context, "File: $fileName ($fileType)", Toast.LENGTH_SHORT).show()
+        return
+    }
+
+    try {
+        if (mediaUrl.startsWith("data:")) {
+            val commaIdx = mediaUrl.indexOf(",")
+            if (commaIdx != -1) {
+                val b64 = mediaUrl.substring(commaIdx + 1)
+                val bytes = Base64.decode(b64, Base64.DEFAULT)
+                val safeFileName = fileName.ifBlank { "attachment.dat" }
+                val cacheFile = File(context.cacheDir, safeFileName)
+                FileOutputStream(cacheFile).use { it.write(bytes) }
+
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    cacheFile
+                )
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, fileType.ifEmpty { "*/*" })
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(intent, "Open $fileName"))
+                return
+            }
+        }
+
+        // Fallback for Uri or URL
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(mediaUrl)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Toast.makeText(context, "Ready: $fileName", Toast.LENGTH_SHORT).show()
+    }
+}
+

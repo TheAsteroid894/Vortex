@@ -890,15 +890,55 @@ function renderMessageCard(msg) {
   let attachmentsHtml = "";
   if (msg.attachments && msg.attachments.length > 0) {
     msg.attachments.forEach(att => {
-      attachmentsHtml += `
-        <div class="attachment-card" style="margin-top:6px; display:inline-flex; align-items:center; gap:8px; background:var(--input-dark); padding:8px 12px; border-radius:6px; border:1px solid var(--border-subtle);">
-          <span style="font-size:18px;">📁</span>
-          <div>
-            <div style="font-weight:600; font-size:12px; color:var(--header-primary);">${escapeHtml(att.fileName || "attachment")}</div>
-            <div style="font-size:10px; color:var(--text-muted);">${escapeHtml(att.fileSizeFormatted || "Media")}</div>
+      const fileName = att.fileName || "attachment";
+      const fileSize = att.fileSizeFormatted || "";
+      const mediaUrl = att.mediaUrl || "";
+      const fileType = att.fileType || "";
+      const isImg = att.isImage || fileType.startsWith("image/") || mediaUrl.startsWith("data:image/") || /\.(png|jpe?g|webp|gif|svg)$/i.test(fileName);
+      const isAud = att.isAudio || fileType.startsWith("audio/") || mediaUrl.startsWith("data:audio/") || /\.(mp3|wav|ogg|m4a|aac)$/i.test(fileName);
+
+      if (isImg && mediaUrl) {
+        attachmentsHtml += `
+          <div class="attachment-image-card" style="margin-top:8px; border-radius:8px; overflow:hidden; max-width:420px; border:1px solid var(--border-subtle); background:var(--input-dark);">
+            <div style="cursor:pointer; max-height:280px; overflow:hidden; background:#101114; display:flex; align-items:center; justify-content:center;" onclick="openImageLightbox('${escapeHtml(mediaUrl)}', '${escapeHtml(fileName)}')">
+              <img src="${escapeHtml(mediaUrl)}" alt="${escapeHtml(fileName)}" style="max-width:100%; max-height:280px; object-fit:contain; display:block;" loading="lazy">
+            </div>
+            <div style="padding:6px 12px; display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); font-size:11px;">
+              <span style="color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;">${escapeHtml(fileName)} ${fileSize ? `(${escapeHtml(fileSize)})` : ''}</span>
+              <a href="${escapeHtml(mediaUrl)}" download="${escapeHtml(fileName)}" class="download-link" style="color:var(--brand-primary); text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:4px;" onclick="event.stopPropagation()">⬇️ Download</a>
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      } else if (isAud && mediaUrl) {
+        attachmentsHtml += `
+          <div class="attachment-card audio-attachment" style="margin-top:8px; display:flex; flex-direction:column; gap:6px; background:var(--input-dark); padding:10px 14px; border-radius:8px; border:1px solid var(--border-subtle); max-width:420px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-weight:600; font-size:12px; color:var(--header-primary);">🎵 ${escapeHtml(fileName)}</span>
+              <span style="font-size:10px; color:var(--text-muted);">${escapeHtml(fileSize)}</span>
+            </div>
+            <audio controls src="${escapeHtml(mediaUrl)}" style="width:100%; height:36px; outline:none;"></audio>
+            <div style="display:flex; justify-content:flex-end;">
+              <a href="${escapeHtml(mediaUrl)}" download="${escapeHtml(fileName)}" style="color:var(--brand-primary); text-decoration:none; font-size:11px; font-weight:600;">⬇️ Download Audio</a>
+            </div>
+          </div>
+        `;
+      } else {
+        const fileIcon = getFileEmojiIcon(fileName, fileType);
+        attachmentsHtml += `
+          <div class="attachment-card" style="margin-top:8px; display:inline-flex; align-items:center; gap:12px; background:var(--input-dark); padding:10px 14px; border-radius:8px; border:1px solid var(--border-subtle); max-width:440px;">
+            <span style="font-size:24px;">${fileIcon}</span>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:600; font-size:13px; color:var(--header-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</div>
+              <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(fileSize || "File")} • ${getFileTypeLabel(fileName, fileType)}</div>
+            </div>
+            ${mediaUrl ? `
+              <a href="${escapeHtml(mediaUrl)}" download="${escapeHtml(fileName)}" class="btn-secondary" style="padding:6px 12px; font-size:11px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:4px; border-radius:6px;" title="Download File">⬇️ Download</a>
+            ` : `
+              <span style="font-size:10px; color:var(--nitro-gold); font-weight:bold; background:rgba(244,127,255,0.15); padding:2px 6px; border-radius:4px;">TRANSFER</span>
+            `}
+          </div>
+        `;
+      }
     });
   }
 
@@ -4528,34 +4568,223 @@ window.addDirectMessageAction = function() {
   window.switchChannel(dmId, "@ " + friendName, "TEXT", true);
 };
 
-window.openAttachmentPicker = function() {
-  showModal(`
-    <div class="modal-card" style="width:400px; max-width:95vw; background:var(--surface-dark); border-radius:10px; padding:20px; border:1px solid var(--border-subtle);">
-      <div class="modal-title" style="font-size:18px; font-weight:bold; color:var(--header-primary);">📁 Send Media Attachment</div>
-      <p style="color:var(--text-muted); font-size:13px; margin:6px 0 14px;">Select an asset to share with channel participants:</p>
-      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
-        <button class="btn-secondary" onclick="simulateSendFile('Project_Assets_Bundle.zip', '124.5 MB')">📦 Project_Assets_Bundle.zip (124.5 MB)</button>
-        <button class="btn-secondary" onclick="simulateSendFile('Gameplay_4K_60FPS.mp4', '210.0 MB')">🎬 Gameplay_4K_60FPS.mp4 (210.0 MB)</button>
-        <button class="btn-secondary" onclick="simulateSendFile('Soundtrack_Lossless.wav', '45.3 MB')">🎵 Soundtrack_Lossless.wav (45.3 MB)</button>
-      </div>
-      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-    </div>
-  `);
+// ============================================================================
+// Real File Upload & Media Attachment System
+// ============================================================================
+window.stagedUploadFile = null;
+
+window.getFileEmojiIcon = function(fileName = "", fileType = "") {
+  const name = (fileName || "").toLowerCase();
+  const type = (fileType || "").toLowerCase();
+  if (type.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg|bmp|ico)$/.test(name)) return "🖼️";
+  if (type.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|aac|flac)$/.test(name)) return "🎵";
+  if (type.startsWith("video/") || /\.(mp4|webm|mov|mkv|avi)$/.test(name)) return "🎬";
+  if (/\.pdf$/.test(name)) return "📄";
+  if (/\.(zip|rar|7z|tar|gz|bz2)$/.test(name)) return "📦";
+  if (/\.(js|ts|jsx|tsx|html|css|py|java|kt|cpp|c|rs|go|json|xml|sh|sql)$/.test(name)) return "💻";
+  if (/\.(txt|md|rtf|doc|docx)$/.test(name)) return "📝";
+  if (/\.(csv|xls|xlsx)$/.test(name)) return "📊";
+  return "📁";
 };
 
-window.simulateSendFile = function(fileName, sizeFormatted) {
-  closeModal();
+window.getFileTypeLabel = function(fileName = "", fileType = "") {
+  const name = (fileName || "").toLowerCase();
+  const type = (fileType || "").toLowerCase();
+  if (type.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)$/.test(name)) return "Image";
+  if (type.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|aac)$/.test(name)) return "Audio";
+  if (type.startsWith("video/") || /\.(mp4|webm|mov)$/.test(name)) return "Video";
+  if (/\.pdf$/.test(name)) return "PDF Document";
+  if (/\.(zip|rar|7z|tar|gz)$/.test(name)) return "Archive";
+  if (/\.(js|ts|py|java|kt|cpp|json|html|css|sh)$/.test(name)) return "Source Code";
+  if (/\.(txt|md|doc|docx)$/.test(name)) return "Document";
+  return "File Attachment";
+};
+
+window.formatBytes = function(bytes) {
+  if (!bytes || bytes <= 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+};
+
+window.openImageLightbox = function(src, title = "") {
+  const existing = document.getElementById("vortex-image-lightbox");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "vortex-image-lightbox";
+  overlay.className = "image-lightbox-overlay";
+  overlay.onclick = function(e) {
+    if (e.target === overlay || e.target.id === "lightbox-close-btn") {
+      overlay.remove();
+    }
+  };
+
+  overlay.innerHTML = `
+    <div style="position:relative; max-width:92vw; max-height:90vh; display:flex; flex-direction:column; align-items:center;">
+      <div style="width:100%; display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <span style="color:white; font-size:14px; font-weight:600; text-shadow:0 1px 4px rgba(0,0,0,0.8);">${escapeHtml(title || "Image Preview")}</span>
+        <div style="display:flex; gap:10px;">
+          <a href="${escapeHtml(src)}" download="${escapeHtml(title || 'image.png')}" class="btn-primary" style="padding:6px 14px; text-decoration:none; font-size:13px; font-weight:600; border-radius:6px; display:inline-flex; align-items:center; gap:6px;">⬇️ Download Full Size</a>
+          <button id="lightbox-close-btn" class="btn-circle" style="width:32px; height:32px; background:rgba(255,255,255,0.2); color:white; border:none; cursor:pointer; font-size:16px;">✕</button>
+        </div>
+      </div>
+      <img src="${escapeHtml(src)}" alt="${escapeHtml(title)}" class="image-lightbox-content">
+    </div>
+  `;
+  document.body.appendChild(overlay);
+};
+
+window.triggerDeviceFileInput = function(accept = "") {
+  const input = document.getElementById("vortex-file-input");
+  if (!input) return;
+  if (accept) {
+    input.setAttribute("accept", accept);
+  } else {
+    input.removeAttribute("accept");
+  }
+  input.value = "";
+  input.click();
+};
+
+window.handleDeviceFileSelected = function(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  window.stageFileForUpload(file);
+};
+
+window.stageFileForUpload = function(file) {
+  const isImg = file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name);
+  const isAud = file.type.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|aac)$/i.test(file.name);
+  const formattedSize = window.formatBytes(file.size);
+
+  const reader = new FileReader();
+
+  if (isImg) {
+    reader.onload = function(e) {
+      const originalDataUrl = e.target.result;
+      // If image is larger than 500KB, downscale using canvas to guarantee Firestore 1MB doc compliance
+      if (file.size > 500 * 1024) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement("canvas");
+          const maxDim = 1440;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          window.stagedUploadFile = {
+            name: file.name,
+            size: file.size,
+            formattedSize: formattedSize,
+            type: file.type || "image/jpeg",
+            mediaUrl: compressedDataUrl,
+            isImage: true,
+            isAudio: false
+          };
+          window.openAttachmentPicker();
+        };
+        img.src = originalDataUrl;
+      } else {
+        window.stagedUploadFile = {
+          name: file.name,
+          size: file.size,
+          formattedSize: formattedSize,
+          type: file.type || "image/png",
+          mediaUrl: originalDataUrl,
+          isImage: true,
+          isAudio: false
+        };
+        window.openAttachmentPicker();
+      }
+    };
+    reader.readAsDataURL(file);
+  } else {
+    // For non-images:
+    // If under ~750KB: read as data URL for cloud sync and direct download
+    if (file.size <= 750 * 1024) {
+      reader.onload = function(e) {
+        window.stagedUploadFile = {
+          name: file.name,
+          size: file.size,
+          formattedSize: formattedSize,
+          type: file.type || "application/octet-stream",
+          mediaUrl: e.target.result,
+          isImage: false,
+          isAudio: isAud
+        };
+        window.openAttachmentPicker();
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // Large media over 750KB: use local object URL
+      const objectUrl = URL.createObjectURL(file);
+      window.stagedUploadFile = {
+        name: file.name,
+        size: file.size,
+        formattedSize: formattedSize,
+        type: file.type || "application/octet-stream",
+        mediaUrl: objectUrl,
+        isImage: false,
+        isAudio: isAud,
+        isLargeMedia: true
+      };
+      window.openAttachmentPicker();
+    }
+  }
+};
+
+window.clearStagedFile = function() {
+  window.stagedUploadFile = null;
+  window.openAttachmentPicker();
+};
+
+window.uploadAndSendStagedFile = async function() {
+  if (!window.stagedUploadFile) return;
+
+  const file = window.stagedUploadFile;
+  const captionInput = document.getElementById("attachment-caption-input");
+  const caption = captionInput ? captionInput.value.trim() : "";
   const serverId = currentServer ? currentServer.id : "dms";
+  const finalContent = caption || `Shared file: ${file.name}`;
+
+  const attachmentPayload = {
+    fileName: file.name,
+    fileType: file.type || "application/octet-stream",
+    fileSizeFormatted: file.formattedSize,
+    fileSize: file.size,
+    mediaUrl: file.mediaUrl || "",
+    isImage: !!file.isImage,
+    isAudio: !!file.isAudio,
+    isLargeMedia: !!file.isLargeMedia
+  };
+
+  closeModal();
+
   try {
     const messagesRef = collection(db, "servers", serverId, "channels", currentChannel.id, "messages");
-    addDoc(messagesRef, {
+    await addDoc(messagesRef, {
       serverId: serverId,
       channelId: currentChannel.id,
       senderId: currentUser.uid,
       senderName: currentUser.displayName,
-      content: `Shared file: ${fileName}`,
+      senderPhotoURL: currentUser.photoURL || "",
+      content: finalContent,
       isEncrypted: isE2EEActive,
-      attachments: [{ fileName: fileName, fileSizeFormatted: sizeFormatted, isLargeMedia: true }],
+      attachments: [attachmentPayload],
       reactions: [],
       isPinned: false,
       createdAt: serverTimestamp()
@@ -4565,17 +4794,310 @@ window.simulateSendFile = function(fileName, sizeFormatted) {
       id: "local_" + Date.now(),
       senderName: currentUser.displayName,
       senderId: currentUser.uid,
-      content: `Shared file: ${fileName}`,
+      senderPhotoURL: currentUser.photoURL || "",
+      content: finalContent,
       isEncrypted: isE2EEActive,
       createdAt: { toDate: () => new Date() },
-      attachments: [{ fileName: fileName, fileSizeFormatted: sizeFormatted, isLargeMedia: true }],
+      attachments: [attachmentPayload],
       reactions: [],
       isPinned: false
     };
     currentMessagesList.push(fallbackMsg);
     renderMessagesStream();
   }
+
+  window.stagedUploadFile = null;
+  const chatEl = document.getElementById("chat-messages-stream");
+  if (chatEl) {
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
 };
+
+window.openAttachmentPicker = function() {
+  const staged = window.stagedUploadFile;
+
+  let contentHtml = "";
+
+  if (staged) {
+    const fileIcon = getFileEmojiIcon(staged.name, staged.type);
+    contentHtml = `
+      <div class="modal-card" style="width:460px; max-width:95vw; background:var(--surface-dark); border-radius:12px; padding:22px; border:1px solid var(--border-subtle); box-shadow:0 12px 36px rgba(0,0,0,0.6);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div class="modal-title" style="font-size:18px; font-weight:bold; color:var(--header-primary); display:flex; align-items:center; gap:8px;">
+            <span>${fileIcon}</span>
+            <span>Ready to Send</span>
+          </div>
+          <button class="btn-circle" onclick="closeModal()" style="width:28px; height:28px; font-size:14px;">✕</button>
+        </div>
+
+        <div class="file-preview-card">
+          ${staged.isImage && staged.mediaUrl ? `
+            <div class="file-preview-thumb">
+              <img src="${escapeHtml(staged.mediaUrl)}" alt="Preview">
+            </div>
+          ` : `
+            <div class="file-preview-thumb">
+              ${fileIcon}
+            </div>
+          `}
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:600; font-size:14px; color:var(--header-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(staged.name)}">${escapeHtml(staged.name)}</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${escapeHtml(staged.formattedSize)} • ${getFileTypeLabel(staged.name, staged.type)}</div>
+          </div>
+          <button class="btn-secondary" onclick="clearStagedFile()" style="padding:6px 10px; font-size:11px;" title="Remove this file">✕ Remove</button>
+        </div>
+
+        ${staged.isImage && staged.mediaUrl ? `
+          <div style="max-height:160px; overflow:hidden; border-radius:8px; margin-bottom:14px; background:#0d0e12; display:flex; align-items:center; justify-content:center; border:1px solid var(--border-subtle);">
+            <img src="${escapeHtml(staged.mediaUrl)}" alt="Preview" style="max-height:160px; max-width:100%; object-fit:contain;">
+          </div>
+        ` : ''}
+
+        <label style="display:block; font-size:12px; font-weight:600; color:var(--header-primary); margin-bottom:6px;">Add an Optional Message / Caption:</label>
+        <input type="text" id="attachment-caption-input" placeholder="Say something about this file..." style="width:100%; padding:10px 12px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px; margin-bottom:14px; font-size:13px;" onkeydown="if(event.key==='Enter') uploadAndSendStagedFile()">
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; font-size:11px; color:var(--text-muted);">
+          <span>Destination: <strong style="color:var(--brand-primary);">#${escapeHtml(currentChannel ? currentChannel.name : 'general')}</strong></span>
+          ${isE2EEActive ? `<span style="color:var(--brand-green); font-weight:600;">🔒 E2EE Active</span>` : ''}
+        </div>
+
+        <div style="display:flex; gap:10px;">
+          <button class="btn-primary" style="flex:1; padding:10px; font-weight:bold; font-size:14px;" onclick="uploadAndSendStagedFile()">🚀 Send File</button>
+          <button class="btn-secondary" style="padding:10px 16px;" onclick="closeModal()">Cancel</button>
+        </div>
+      </div>
+    `;
+  } else {
+    contentHtml = `
+      <div class="modal-card" style="width:480px; max-width:95vw; background:var(--surface-dark); border-radius:12px; padding:22px; border:1px solid var(--border-subtle); box-shadow:0 12px 36px rgba(0,0,0,0.6);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div class="modal-title" style="font-size:18px; font-weight:bold; color:var(--header-primary); display:flex; align-items:center; gap:8px;">
+            <span>📁</span>
+            <span>Upload & Send Files</span>
+          </div>
+          <button class="btn-circle" onclick="closeModal()" style="width:28px; height:28px; font-size:14px;">✕</button>
+        </div>
+        <p style="color:var(--text-muted); font-size:12px; margin:0 0 16px;">Share photos, code snippets, PDFs, audio, archives, and documents directly to #${escapeHtml(currentChannel ? currentChannel.name : 'general')}.</p>
+
+        <!-- Dropzone Area -->
+        <div class="file-dropzone" onclick="triggerDeviceFileInput('*/*')" ondragover="event.preventDefault(); this.classList.add('drag-active');" ondragleave="this.classList.remove('drag-active');" ondrop="handleDropzoneDrop(event)">
+          <div class="dropzone-icon">☁️</div>
+          <div class="dropzone-title">Click to browse or drop your file here</div>
+          <div class="dropzone-hint">Supports Images, Documents, Code, Audio, Video, Archives (up to 500MB)</div>
+        </div>
+
+        <!-- Quick Source Selectors -->
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin:16px 0;">
+          <button class="btn-secondary" style="padding:10px; font-size:12px; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:4px;" onclick="triggerDeviceFileInput('*/*')">
+            <span style="font-size:20px;">📂</span>
+            <span>Browse Files</span>
+          </button>
+          <button class="btn-secondary" style="padding:10px; font-size:12px; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:4px;" onclick="triggerDeviceFileInput('image/*')">
+            <span style="font-size:20px;">🖼️</span>
+            <span>Photos & Art</span>
+          </button>
+          <button class="btn-secondary" style="padding:10px; font-size:12px; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:4px;" onclick="openSnippetComposerModal()">
+            <span style="font-size:20px;">📝</span>
+            <span>Code Snippet</span>
+          </button>
+        </div>
+
+        <!-- Quick Testing Presets (Clearly labeled as presets) -->
+        <details style="margin-top:10px; border-top:1px solid var(--border-subtle); padding-top:10px;">
+          <summary style="font-size:11px; color:var(--text-muted); cursor:pointer; user-select:none;">⚡ Quick Test Presets (For fast testing without local files)</summary>
+          <div style="display:flex; flex-direction:column; gap:6px; margin-top:10px;">
+            <button class="btn-secondary" style="text-align:left; font-size:12px; padding:8px 12px; display:flex; justify-content:space-between;" onclick="sendSamplePreset('Cyber_Hologram.png', '420 KB', 'image/png')">
+              <span>🖼️ Cyber_Hologram.png</span>
+              <span style="color:var(--text-muted); font-size:10px;">420 KB • Image</span>
+            </button>
+            <button class="btn-secondary" style="text-align:left; font-size:12px; padding:8px 12px; display:flex; justify-content:space-between;" onclick="sendSamplePreset('Vortex_Project_Source.zip', '124.5 MB', 'application/zip')">
+              <span>📦 Vortex_Project_Source.zip</span>
+              <span style="color:var(--text-muted); font-size:10px;">124.5 MB • Archive</span>
+            </button>
+            <button class="btn-secondary" style="text-align:left; font-size:12px; padding:8px 12px; display:flex; justify-content:space-between;" onclick="sendSamplePreset('Ambient_Soundtrack.wav', '45.3 MB', 'audio/wav')">
+              <span>🎵 Ambient_Soundtrack.wav</span>
+              <span style="color:var(--text-muted); font-size:10px;">45.3 MB • Audio</span>
+            </button>
+          </div>
+        </details>
+
+        <button class="btn-secondary" onclick="closeModal()" style="margin-top:16px; width:100%; padding:9px;">Cancel</button>
+      </div>
+    `;
+  }
+
+  showModal(contentHtml);
+};
+
+window.handleDropzoneDrop = function(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  const dt = event.dataTransfer;
+  if (dt && dt.files && dt.files.length > 0) {
+    window.stageFileForUpload(dt.files[0]);
+  }
+};
+
+window.sendSamplePreset = function(fileName, sizeFormatted, fileType) {
+  // Generate a stylish sample SVG/data URL for instant preview
+  let sampleDataUrl = "";
+  if (fileType.startsWith("image/")) {
+    sampleDataUrl = "data:image/svg+xml;utf8," + encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="600" height="340" viewBox="0 0 600 340">
+        <defs>
+          <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#5865F2"/>
+            <stop offset="50%" stop-color="#EB459E"/>
+            <stop offset="100%" stop-color="#57F287"/>
+          </linearGradient>
+        </defs>
+        <rect width="600" height="340" fill="#1e1f22"/>
+        <rect x="20" y="20" width="560" height="300" rx="16" fill="url(#g)" opacity="0.85"/>
+        <text x="300" y="160" font-family="sans-serif" font-size="28" font-weight="bold" fill="#ffffff" text-anchor="middle">VORTEX CYBER ART</text>
+        <text x="300" y="200" font-family="sans-serif" font-size="14" fill="#ffffff" opacity="0.9" text-anchor="middle">${fileName} • ${sizeFormatted}</text>
+      </svg>
+    `);
+  }
+
+  window.stagedUploadFile = {
+    name: fileName,
+    size: 420000,
+    formattedSize: sizeFormatted,
+    type: fileType,
+    mediaUrl: sampleDataUrl,
+    isImage: fileType.startsWith("image/"),
+    isAudio: fileType.startsWith("audio/"),
+    isLargeMedia: sizeFormatted.includes("MB")
+  };
+  window.openAttachmentPicker();
+};
+
+window.openSnippetComposerModal = function() {
+  showModal(`
+    <div class="modal-card" style="width:520px; max-width:95vw; background:var(--surface-dark); border-radius:12px; padding:22px; border:1px solid var(--border-subtle);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div class="modal-title" style="font-size:18px; font-weight:bold; color:var(--header-primary); display:flex; align-items:center; gap:8px;">
+          <span>📝</span>
+          <span>Create Text / Code Snippet</span>
+        </div>
+        <button class="btn-circle" onclick="openAttachmentPicker()" style="width:28px; height:28px; font-size:14px;">✕</button>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 140px; gap:10px; margin-bottom:12px;">
+        <div>
+          <label style="display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px;">File Name:</label>
+          <input type="text" id="snippet-filename-input" value="snippet.js" placeholder="e.g. script.py, config.json" style="width:100%; padding:8px 10px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px; font-family:monospace; font-size:13px;">
+        </div>
+        <div>
+          <label style="display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px;">Language:</label>
+          <select id="snippet-lang-select" style="width:100%; padding:8px 10px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px; font-size:13px;" onchange="updateSnippetExtension(this.value)">
+            <option value="javascript">JavaScript (.js)</option>
+            <option value="python">Python (.py)</option>
+            <option value="kotlin">Kotlin (.kt)</option>
+            <option value="json">JSON (.json)</option>
+            <option value="markdown">Markdown (.md)</option>
+            <option value="sql">SQL (.sql)</option>
+            <option value="text">Plain Text (.txt)</option>
+          </select>
+        </div>
+      </div>
+
+      <label style="display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px;">Snippet Content:</label>
+      <textarea id="snippet-content-input" placeholder="// Write or paste your code snippet here..." style="width:100%; height:180px; padding:10px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px; font-family:monospace; font-size:13px; line-height:1.4; resize:vertical; margin-bottom:14px;"></textarea>
+
+      <div style="display:flex; gap:10px;">
+        <button class="btn-primary" style="flex:1; padding:10px; font-weight:bold;" onclick="createAndSendSnippet()">Stage & Send Snippet</button>
+        <button class="btn-secondary" style="padding:10px 16px;" onclick="openAttachmentPicker()">Back</button>
+      </div>
+    </div>
+  `);
+};
+
+window.updateSnippetExtension = function(lang) {
+  const input = document.getElementById("snippet-filename-input");
+  if (!input) return;
+  const exts = {
+    javascript: "snippet.js",
+    python: "script.py",
+    kotlin: "Main.kt",
+    json: "data.json",
+    markdown: "notes.md",
+    sql: "query.sql",
+    text: "document.txt"
+  };
+  if (exts[lang]) input.value = exts[lang];
+};
+
+window.createAndSendSnippet = function() {
+  const filename = (document.getElementById("snippet-filename-input")?.value || "snippet.txt").trim();
+  const text = document.getElementById("snippet-content-input")?.value || "";
+  if (!text.trim()) {
+    alert("Please enter snippet content before sending.");
+    return;
+  }
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const file = new File([blob], filename, { type: "text/plain" });
+  window.stageFileForUpload(file);
+};
+
+// Global Drag-and-Drop and Clipboard Paste Listeners
+document.addEventListener("DOMContentLoaded", () => {
+  setupChatDragAndDrop();
+  setupClipboardPaste();
+});
+
+function setupChatDragAndDrop() {
+  const chatArea = document.querySelector(".chat-area");
+  const overlay = document.getElementById("chat-drag-overlay");
+  if (!chatArea || !overlay) return;
+
+  let dragCounter = 0;
+
+  chatArea.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    dragCounter++;
+    overlay.style.display = "flex";
+  });
+
+  chatArea.addEventListener("dragover", (e) => {
+    e.preventDefault();
+  });
+
+  chatArea.addEventListener("dragleave", (e) => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      overlay.style.display = "none";
+    }
+  });
+
+  chatArea.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    overlay.style.display = "none";
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      window.stageFileForUpload(e.dataTransfer.files[0]);
+    }
+  });
+}
+
+function setupClipboardPaste() {
+  window.addEventListener("paste", (e) => {
+    if (!e.clipboardData || !e.clipboardData.items) return;
+    for (let i = 0; i < e.clipboardData.items.length; i++) {
+      const item = e.clipboardData.items[i];
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        if (file) {
+          window.stageFileForUpload(file);
+          break;
+        }
+      }
+    }
+  });
+}
+
 
 window.openJoinServerModal = function(prefilledCode = "") {
   showModal(`

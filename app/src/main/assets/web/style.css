@@ -1730,3 +1730,129 @@ input:checked + .slider:before {
   font-size: 12px;
 }
 
+/* --- Real File Attachment & Dropzone Styles --- */
+.file-dropzone {
+  border: 2px dashed var(--border-subtle);
+  border-radius: 10px;
+  padding: 24px 16px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.file-dropzone:hover, .file-dropzone.drag-active {
+  border-color: var(--brand-primary);
+  background: rgba(88, 101, 242, 0.12);
+  transform: translateY(-1px);
+}
+.dropzone-icon {
+  font-size: 36px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+.dropzone-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--header-primary);
+}
+.dropzone-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.file-preview-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--input-dark);
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 12px;
+}
+.file-preview-thumb {
+  width: 54px;
+  height: 54px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.file-preview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachment-image-card {
+  margin-top: 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 440px;
+  border: 1px solid var(--border-subtle);
+  background: var(--input-dark);
+}
+.attachment-image-card img {
+  transition: transform 0.2s ease;
+}
+.attachment-image-card:hover img {
+  transform: scale(1.01);
+}
+
+.chat-drag-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 16, 20, 0.88);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--brand-primary);
+  border-radius: 8px;
+  pointer-events: none;
+}
+.drag-overlay-card {
+  text-align: center;
+  padding: 28px 40px;
+  background: var(--surface-dark);
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.image-lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(10px);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.image-lightbox-content {
+  max-width: 90vw;
+  max-height: 82vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.75);
+}
+

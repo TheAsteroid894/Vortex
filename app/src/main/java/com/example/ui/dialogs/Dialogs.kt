@@ -1,5 +1,16 @@
 package com.example.ui.dialogs
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import java.io.ByteArrayOutputStream
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,8 +19,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,9 +31,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Diamond
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Image
@@ -39,6 +56,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -1355,25 +1373,213 @@ fun LegalViewerDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AttachmentPickerDialog(
     onDismiss: () -> Unit,
-    onSendAttachment: (Attachment) -> Unit
+    onSendAttachment: (Attachment) -> Unit,
+    onSendWithCaption: ((Attachment, String) -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    var stagedAttachment by remember { mutableStateOf<Attachment?>(null) }
+    var captionText by remember { mutableStateOf("") }
+    var isProcessing by remember { mutableStateOf(false) }
+    var showSnippetModal by remember { mutableStateOf(false) }
+    var snippetFileName by remember { mutableStateOf("notes.txt") }
+    var snippetContent by remember { mutableStateOf("") }
+    var showTestPresets by remember { mutableStateOf(false) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isProcessing = true
+            try {
+                var fileName = "attachment"
+                var fileSize = 0L
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (cursor.moveToFirst()) {
+                        if (nameIdx != -1) fileName = cursor.getString(nameIdx) ?: fileName
+                        if (sizeIdx != -1) fileSize = cursor.getLong(sizeIdx)
+                    }
+                }
+                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                val formattedSize = formatFileSize(fileSize)
+                var mediaUrl = ""
+
+                val isImg = mimeType.startsWith("image/") || fileName.lowercase().matches(".*\\.(png|jpg|jpeg|webp|gif)$".toRegex())
+                if (isImg) {
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        val bmp = BitmapFactory.decodeStream(stream)
+                        if (bmp != null) {
+                            val maxDim = 1280
+                            val ratio = minOf(1.0f, maxDim.toFloat() / maxOf(bmp.width, bmp.height))
+                            val scaled = if (ratio < 1.0f) {
+                                Bitmap.createScaledBitmap(bmp, (bmp.width * ratio).toInt(), (bmp.height * ratio).toInt(), true)
+                            } else bmp
+                            val baos = ByteArrayOutputStream()
+                            scaled.compress(Bitmap.CompressFormat.JPEG, 85, baos)
+                            mediaUrl = "data:image/jpeg;base64," + Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+                        }
+                    }
+                } else if (fileSize in 1..650_000) {
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        val bytes = stream.readBytes()
+                        mediaUrl = "data:$mimeType;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    }
+                }
+
+                stagedAttachment = Attachment(
+                    fileName = fileName,
+                    fileType = mimeType,
+                    fileSizeFormatted = formattedSize,
+                    mediaUrl = mediaUrl,
+                    isLargeMedia = fileSize > 650_000
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isProcessing = false
+            }
+        }
+    }
+
+    val mediaPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isProcessing = true
+            try {
+                var fileName = "photo.jpg"
+                var fileSize = 0L
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (cursor.moveToFirst()) {
+                        if (nameIdx != -1) fileName = cursor.getString(nameIdx) ?: fileName
+                        if (sizeIdx != -1) fileSize = cursor.getLong(sizeIdx)
+                    }
+                }
+                val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                val formattedSize = formatFileSize(fileSize)
+                var mediaUrl = ""
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    val bmp = BitmapFactory.decodeStream(stream)
+                    if (bmp != null) {
+                        val maxDim = 1280
+                        val ratio = minOf(1.0f, maxDim.toFloat() / maxOf(bmp.width, bmp.height))
+                        val scaled = if (ratio < 1.0f) {
+                            Bitmap.createScaledBitmap(bmp, (bmp.width * ratio).toInt(), (bmp.height * ratio).toInt(), true)
+                        } else bmp
+                        val baos = ByteArrayOutputStream()
+                        scaled.compress(Bitmap.CompressFormat.JPEG, 85, baos)
+                        mediaUrl = "data:image/jpeg;base64," + Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+                    }
+                }
+                stagedAttachment = Attachment(
+                    fileName = fileName,
+                    fileType = mimeType,
+                    fileSizeFormatted = formattedSize,
+                    mediaUrl = mediaUrl,
+                    isLargeMedia = false
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isProcessing = false
+            }
+        }
+    }
+
+    if (showSnippetModal) {
+        AlertDialog(
+            onDismissRequest = { showSnippetModal = false },
+            containerColor = VortexSurfaceDark,
+            title = {
+                Text(
+                    text = "Create Code / Text Snippet",
+                    color = VortexTextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = snippetFileName,
+                        onValueChange = { snippetFileName = it },
+                        label = { Text("File Name (e.g. notes.txt, script.kt)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            containerColor = VortexInputDark,
+                            focusedBorderColor = DiscordBlurple,
+                            unfocusedBorderColor = VortexAccentBorder
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = snippetContent,
+                        onValueChange = { snippetContent = it },
+                        label = { Text("Snippet Content") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            containerColor = VortexInputDark,
+                            focusedBorderColor = DiscordBlurple,
+                            unfocusedBorderColor = VortexAccentBorder
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val bytes = snippetContent.toByteArray(Charsets.UTF_8)
+                        val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                        stagedAttachment = Attachment(
+                            fileName = snippetFileName.trim().ifEmpty { "notes.txt" },
+                            fileType = "text/plain",
+                            fileSizeFormatted = formatFileSize(bytes.size.toLong()),
+                            mediaUrl = "data:text/plain;base64,$b64",
+                            isLargeMedia = false
+                        )
+                        showSnippetModal = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DiscordBlurple)
+                ) {
+                    Text("Stage Snippet", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showSnippetModal = false }) {
+                    Text("Cancel", color = VortexTextMuted)
+                }
+            }
+        )
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = VortexSurfaceDark,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Default.Diamond,
-                    contentDescription = "Nitro Uploads",
-                    tint = DiscordNitroGold,
+                    imageVector = Icons.Default.InsertDriveFile,
+                    contentDescription = "Uploads",
+                    tint = DiscordBlurple,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Send Large Media & Files",
+                    text = if (stagedAttachment != null) "Ready to Send File" else "Upload & Send Files",
                     color = VortexTextPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
@@ -1381,74 +1587,236 @@ fun AttachmentPickerDialog(
             }
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Seamless uploads up to 500MB:",
-                    color = VortexTextMuted,
-                    fontSize = 13.sp
-                )
-                Spacer(modifier = Modifier.height(14.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                if (stagedAttachment != null) {
+                    val staged = stagedAttachment!!
+                    // Staged File Preview Card
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = VortexInputDark,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DiscordBlurple)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            if (staged.mediaUrl.startsWith("data:image/")) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(130.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.Black),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    AsyncImage(
+                                        model = staged.mediaUrl,
+                                        contentDescription = "Preview",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
 
-                MediaSampleTile(
-                    icon = Icons.Default.Movie,
-                    title = "Gameplay_Clips_4K_60FPS.mp4",
-                    size = "412.5 MB",
-                    type = "video/mp4",
-                    onClick = {
-                        onSendAttachment(
-                            Attachment(
-                                fileName = "Gameplay_Clips_4K_60FPS.mp4",
-                                fileType = "video/mp4",
-                                fileSizeFormatted = "412.5 MB",
-                                isLargeMedia = true
-                            )
-                        )
-                        onDismiss()
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(DiscordBlurple.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (staged.mediaUrl.startsWith("data:image/")) Icons.Default.Image else Icons.Default.InsertDriveFile,
+                                        contentDescription = null,
+                                        tint = DiscordBlurple,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = staged.fileName,
+                                        color = VortexTextPrimary,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "${staged.fileSizeFormatted} • ${staged.fileType}",
+                                        color = VortexTextMuted,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                IconButton(onClick = { stagedAttachment = null }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove",
+                                        tint = VortexTextMuted
+                                    )
+                                }
+                            }
+                        }
                     }
-                )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                MediaSampleTile(
-                    icon = Icons.Default.FolderZip,
-                    title = "Vortex_Project_Source_Assets.zip",
-                    size = "184.2 MB",
-                    type = "application/zip",
-                    onClick = {
-                        onSendAttachment(
-                            Attachment(
-                                fileName = "Vortex_Project_Source_Assets.zip",
-                                fileType = "application/zip",
-                                fileSizeFormatted = "184.2 MB",
-                                isLargeMedia = true
-                            )
+                    Text(
+                        text = "Add an Optional Comment / Caption:",
+                        color = VortexTextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = captionText,
+                        onValueChange = { captionText = it },
+                        placeholder = { Text("Say something about this file...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            containerColor = VortexInputDark,
+                            focusedBorderColor = DiscordBlurple,
+                            unfocusedBorderColor = VortexAccentBorder
                         )
-                        onDismiss()
-                    }
-                )
+                    )
+                } else {
+                    Text(
+                        text = "Choose a file from your device, photos from gallery, or compose a text/code snippet:",
+                        color = VortexTextMuted,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    // Primary Real File Picker Actions
+                    RealFileOptionTile(
+                        icon = Icons.Default.InsertDriveFile,
+                        title = "📁 Browse Device Files",
+                        subtitle = "Select any file (PDF, ZIP, Audio, Documents, Code)",
+                        onClick = {
+                            filePickerLauncher.launch("*/*")
+                        }
+                    )
 
-                MediaSampleTile(
-                    icon = Icons.Default.Image,
-                    title = "Cyberpunk_Hologram_Render.png",
-                    size = "48.6 MB",
-                    type = "image/png",
-                    onClick = {
-                        onSendAttachment(
-                            Attachment(
-                                fileName = "Cyberpunk_Hologram_Render.png",
-                                fileType = "image/png",
-                                fileSizeFormatted = "48.6 MB",
-                                isLargeMedia = false
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    RealFileOptionTile(
+                        icon = Icons.Default.Image,
+                        title = "🖼️ Pick Photo / Video from Gallery",
+                        subtitle = "Select images or media from device gallery",
+                        onClick = {
+                            mediaPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                             )
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    RealFileOptionTile(
+                        icon = Icons.Default.Code,
+                        title = "📝 Create Code / Text Snippet",
+                        subtitle = "Compose text or code snippet directly",
+                        onClick = {
+                            showSnippetModal = true
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Collapsible testing presets
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showTestPresets = !showTestPresets }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (showTestPresets) "▼ Hide Test Presets" else "▶ ⚡ Quick Sample Presets (For Testing)",
+                            color = VortexTextMuted,
+                            fontSize = 11.sp
                         )
-                        onDismiss()
                     }
-                )
+
+                    if (showTestPresets) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        MediaSampleTile(
+                            icon = Icons.Default.Movie,
+                            title = "Gameplay_Clips_4K_60FPS.mp4",
+                            size = "412.5 MB",
+                            type = "video/mp4",
+                            onClick = {
+                                stagedAttachment = Attachment(
+                                    fileName = "Gameplay_Clips_4K_60FPS.mp4",
+                                    fileType = "video/mp4",
+                                    fileSizeFormatted = "412.5 MB",
+                                    isLargeMedia = true
+                                )
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        MediaSampleTile(
+                            icon = Icons.Default.FolderZip,
+                            title = "Vortex_Project_Source_Assets.zip",
+                            size = "184.2 MB",
+                            type = "application/zip",
+                            onClick = {
+                                stagedAttachment = Attachment(
+                                    fileName = "Vortex_Project_Source_Assets.zip",
+                                    fileType = "application/zip",
+                                    fileSizeFormatted = "184.2 MB",
+                                    isLargeMedia = true
+                                )
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        MediaSampleTile(
+                            icon = Icons.Default.Image,
+                            title = "Cyberpunk_Hologram_Render.png",
+                            size = "48.6 MB",
+                            type = "image/png",
+                            onClick = {
+                                stagedAttachment = Attachment(
+                                    fileName = "Cyberpunk_Hologram_Render.png",
+                                    fileType = "image/png",
+                                    fileSizeFormatted = "48.6 MB",
+                                    isLargeMedia = false
+                                )
+                            }
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
+            if (stagedAttachment != null) {
+                Button(
+                    onClick = {
+                        val att = stagedAttachment!!
+                        if (onSendWithCaption != null) {
+                            onSendWithCaption(att, captionText)
+                        } else {
+                            onSendAttachment(att)
+                        }
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DiscordBlurple),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Send File", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
             OutlinedButton(
                 onClick = onDismiss,
                 shape = RoundedCornerShape(8.dp)
@@ -1457,6 +1825,67 @@ fun AttachmentPickerDialog(
             }
         }
     )
+}
+
+@Composable
+private fun RealFileOptionTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(VortexInputDark)
+            .border(1.dp, VortexAccentBorder, RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(DiscordBlurple.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = DiscordBlurple,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = VortexTextPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = subtitle,
+                color = VortexTextMuted,
+                fontSize = 11.sp
+            )
+        }
+    }
+}
+
+private fun formatFileSize(bytes: Long): String {
+    if (bytes <= 0) return "0 B"
+    val kb = bytes / 1024.0
+    val mb = kb / 1024.0
+    return if (mb >= 1.0) {
+        "%.1f MB".format(mb)
+    } else if (kb >= 1.0) {
+        "%.1f KB".format(kb)
+    } else {
+        "$bytes B"
+    }
 }
 
 @Composable

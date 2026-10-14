@@ -1,10 +1,15 @@
 package com.example.ui.web
 
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +32,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +65,21 @@ fun WebCompanionScreen(
     }
 
     var webViewInstance: WebView? = remember { null }
+    var filePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
+
+    val fileChooserLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
+        val clipData = result.data?.clipData
+        val results: Array<Uri>? = if (clipData != null) {
+            Array(clipData.itemCount) { i -> clipData.getItemAt(i).uri }
+        } else if (uri != null) {
+            arrayOf(uri)
+        } else null
+        filePathCallback?.onReceiveValue(results)
+        filePathCallback = null
+    }
 
     Column(
         modifier = modifier
@@ -152,7 +175,27 @@ fun WebCompanionScreen(
                     settings.loadWithOverviewMode = true
                     settings.useWideViewPort = true
                     webViewClient = WebViewClient()
-                    webChromeClient = WebChromeClient()
+                    webChromeClient = object : WebChromeClient() {
+                        override fun onShowFileChooser(
+                            view: WebView?,
+                            callback: ValueCallback<Array<Uri>>?,
+                            params: FileChooserParams?
+                        ): Boolean {
+                            filePathCallback?.onReceiveValue(null)
+                            filePathCallback = callback
+                            val intent = params?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                                type = "*/*"
+                            }
+                            try {
+                                fileChooserLauncher.launch(intent)
+                            } catch (e: Exception) {
+                                filePathCallback?.onReceiveValue(null)
+                                filePathCallback = null
+                                return false
+                            }
+                            return true
+                        }
+                    }
                     loadUrl("file:///android_asset/web/index.html")
                 }
             }

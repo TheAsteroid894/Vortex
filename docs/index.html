@@ -240,6 +240,19 @@
         <button class="btn-send" onclick="sendMessage()">Send</button>
       </div>
     </div>
+
+    <!-- Hidden File Inputs for Device File Uploads -->
+    <input type="file" id="vortex-file-input" style="display:none;" onchange="handleDeviceFileSelected(event)">
+    <input type="file" id="vortex-media-input" accept="image/*,video/*,audio/*" style="display:none;" onchange="handleDeviceFileSelected(event)">
+
+    <!-- Drag & Drop Upload Overlay -->
+    <div id="chat-drag-overlay" class="chat-drag-overlay" style="display:none;">
+      <div class="drag-overlay-card">
+        <span style="font-size:42px;">📁</span>
+        <div style="font-size:18px; font-weight:bold; color:var(--header-primary); margin-top:8px;">Upload to Vortex</div>
+        <div style="font-size:13px; color:var(--text-muted); margin-top:4px;">Drop file here to send as an attachment</div>
+      </div>
+    </div>
   </main>
 
   <!-- Right Server Member List Sidebar -->
