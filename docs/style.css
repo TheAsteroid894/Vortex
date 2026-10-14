@@ -1037,6 +1037,27 @@ body {
   font-weight: bold;
 }
 
+/* Google AdSense Responsive Ad Unit Container */
+.adsense-unit-container {
+  width: 100%;
+  min-height: 200px;
+  max-height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #000;
+  border-radius: 6px;
+  margin: 8px 0;
+}
+
+.adsense-unit-container ins.adsbygoogle {
+  display: block !important;
+  width: 100% !important;
+  min-width: 300px;
+  min-height: 200px;
+}
+
 /* Legal Documents */
 .legal-card {
   background: var(--input-dark);

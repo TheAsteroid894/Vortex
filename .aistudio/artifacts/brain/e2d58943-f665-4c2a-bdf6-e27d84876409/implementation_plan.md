@@ -1,108 +1,124 @@
-# Vortex Web - GitHub Pages Live Deployment Plan
+# Google AdSense Integration for Vortex
 
-Deploy the Vortex Discord-style web client directly to GitHub Pages with live Firebase Firestore real-time synchronization, WebRTC-compatible voice and video stages, End-to-End Encryption, and 100% feature parity with the Android mobile application.
+Integrate official Google AdSense into the Vortex Web client, specifically embedded within the **Nitro & Server Boosts** reward modal while preserving the zero-distraction guarantee across all chat channels and servers.
+
+---
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The following architectural and deployment decisions have been confirmed for this implementation:
-
-- **Confirmed Decision 1 (Feature Parity)**: The web client will function identically to the Android application, featuring server management, channel creation, Direct Messages with friend tags, E2EE message cryptography, interactive voice/video stages, ultra-low bandwidth mode (6kbps), and 500MB free Nitro uploads.
-- **Confirmed Decision 2 (Live Cloud Sync)**: The web app connects directly to the live Vortex Firebase backend (`gen-lang-client-0796013424`, database `ai-studio-android-vortex-e2d58943-f665-4c2a-bdf6-e27d84876409`) via the official Firebase Web Modular SDK v10+. Any message or server created on Android appears instantly on the web and vice versa.
-- **Confirmed Decision 3 (GitHub Pages Structure)**: Deploy via a dedicated `/docs` root directory containing the production-ready web application (`index.html`, `app.js`, `style.css`, assets) alongside a preconfigured GitHub Actions workflow (`.github/workflows/deploy-pages.yml`) for seamless one-click publishing.
+> The following user preferences were confirmed during clarification:
+> - **Placement**: AdSense is restricted strictly to the reward modal when claiming 1 Month Nitro or Server Boosts.
+> - **Publisher ID**: Configured with a ready-to-use placeholder (`ca-pub-XXXXXXXXXXXXXXXX`) and slot placeholder (`1234567890`), with simple configuration variables.
+> - **Zero-Ad Chat Guarantee**: Chat channels, direct messages, servers, and voice/video rooms remain 100% ad-free.
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Delivers a full-featured, zero-install, Discord-style community web platform hosted for free on GitHub Pages (`https://<username>.github.io/<repo>/`). Users can access the app from any browser (desktop, tablet, or smartphone) with instant cross-platform real-time sync with mobile Android users.
-- **Target Audience**: Gamers, developer communities, and privacy-focused groups needing lightweight, end-to-end encrypted voice and text chat that works anywhere without requiring app installation or paid subscriptions.
-- **Key Value**: Free global hosting via GitHub Pages + serverless real-time database via Firebase Firestore + client-side AES-GCM privacy.
+- **What It Does**: Connects the Vortex Web reward center with Google AdSense. When users click "Watch Ad to Unlock 1 Month Nitro" or "Watch Ad to Boost Server", an AdSense responsive ad unit is displayed within the reward dialog. Completing the countdown unlocks 30 days of monthly Nitro perks and server boosts.
+- **Target Audience**: Community members who want to support the server and unlock premium perks without recurring subscription costs.
+- **Key Value**: Provides real monetization for the server administrator while keeping community communications completely ad-free.
 
 ---
 
 ## 2. User Experience & Visual Design
 
-### Key User Flows
-1. **Launch & Authentication**:
-   - The user opens the GitHub Pages URL.
-   - A modern Discord-style login screen offers one-click Google Sign-In via Firebase Auth or guest session mode.
-2. **Server & Channel Navigation**:
-   - 3-column layout on wide screens: Left Server Rail (72px) → Middle Channel Sidebar (240px) → Main Chat / Stage Area.
-   - On mobile viewports: Responsive drawer navigation with smooth slide-over gesture controls.
-3. **Real-Time Encrypted Chatting**:
-   - User types messages in `#general` or private Direct Messages.
-   - Messages are encrypted on-device with AES-GCM and stored in Cloud Firestore.
-   - Live snapshot listeners immediately update chat bubbles across all connected Web and Android devices.
-4. **Voice & Video Calling Stage**:
-   - Clicking a voice or video channel transitions into the live stage grid with glowing green speaking indicators, mute/deafen controls, camera feed, and screen sharing.
-5. **Nitro Perks & Large Media Sharing**:
-   - Seamless drag-and-drop file uploads supporting up to 500MB files with free Nitro tier badges.
+```
+┌──────────────────────────────────────────────────────────────┐
+│  💎 Nitro & Server Boosts (Settings Tab)                     │
+│  ──────────────────────────────────────────────────────────  │
+│  [🎬 Watch Ad for 1 Month Nitro]   [🚀 Boost Server (30d)]   │
+└───────────────────────────────┬──────────────────────────────┘
+                                │ User clicks "Watch Ad"
+                                ▼
+┌──────────────────────────────────────────────────────────────┐
+│  🎬 SPONSORED REWARD AD                   ⏳ 15s Countdown   │
+│  ──────────────────────────────────────────────────────────  │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │   Google AdSense Responsive Unit                       │  │
+│  │   <ins class="adsbygoogle"                             │  │
+│  │        data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"        │  │
+│  │        data-ad-slot="1234567890"></ins>                │  │
+│  │   (Interactive Ad Banner / Video Display)              │  │
+│  └────────────────────────────────────────────────────────┘  │
+│  [==========================                  ] Progress 60% │
+│                                                              │
+│  Reward: 1 Month Nitro                                       │
+│  [ Claim 30 Days! (Enabled once countdown finishes) ]        │
+└──────────────────────────────────────────────────────────────┘
+```
 
-### Visual Identity & Theme Tokens
-- **Theme**: Premium Discord Cyber Dark
-- **Color Tokens**:
-  - Background Base: `#1E1F22`
-  - Sidebar & Surfaces: `#2B2D31`
-  - Chat Area: `#313338`
-  - Input & Cards: `#383A40`
-  - Discord Blurple: `#5865F2`
-  - Online Green: `#23A55A`
-  - Nitro Pink: `#EB459E`
-  - Nitro Gold: `#FEE75C`
-  - Danger Red: `#ED4245`
-- **Typography**: Clean sans-serif hierarchy matching modern Discord UI (`gg sans`, system-ui, BlinkMacSystemFont).
+- **Clean Reward Flow**:
+  1. User navigates to Settings ➔ "Nitro & Server Boosts" or clicks the 💎 icon.
+  2. User clicks "Watch Ad to Unlock 1 Month Nitro" or "Watch Ad to Boost Server".
+  3. The reward modal opens, initializing the Google AdSense ad unit alongside a 15-second countdown timer and visual progress bar.
+  4. If an ad is blocked by an adblocker or the AdSense account is still pending domain verification, a polished high-definition sponsor preview acts as an automatic fallback so users are never blocked from earning rewards.
+  5. Upon timer completion, the "Claim 30 Days!" button activates with green highlight, granting the user monthly Nitro subscription status and boosting the server in Firestore.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Direct Modular Firebase Web SDK vs REST API**
-  - *Chosen Approach*: Official Firebase JS SDK v10 (modular CDN bundle).
-  - *Why*: Provides native WebSocket real-time snapshot listeners (`onSnapshot`), offline caching, and automatic reconnection matching the Android Firestore client.
-  - *Alternative Considered*: Fetching via REST API—rejected due to lack of real-time multi-user push updates without heavy polling.
-
-- **Decision 2: Dual Deployment Pipeline (/docs + GitHub Actions)**
-  - *Chosen Approach*: Provide both `/docs` directory for instant one-click GitHub Pages setup and `.github/workflows/deploy-pages.yml` for automated CI/CD.
-  - *Why*: Allows beginners to enable GitHub Pages in 2 clicks under repository settings, while giving advanced developers automated deployment on git push.
-
-- **Decision 3: Web Crypto API (SubtleCrypto) for E2EE**
-  - *Chosen Approach*: Native browser `window.crypto.subtle` AES-GCM (256-bit) with PBKDF2/SHA-256 key derivation.
-  - *Why*: Matches Android's `javax.crypto.Cipher` AES-GCM implementation bit-for-bit, allowing Android and Web clients to decrypt each other's messages seamlessly.
+- **Decision 1: Isolated Reward Modal Placement**:
+  - *Chosen Approach*: Embed AdSense exclusively inside the reward modal dialogue, keeping the rest of the application completely free of banners or popups.
+  - *Why*: AdSense policies strictly prohibit intrusive ads that interfere with user navigation. Isolating ads to explicit user-requested rewards provides higher click-through rates, adheres to Google Publisher Policies, and protects user trust.
+- **Decision 2: Dual-Mode Engine (Live AdSense + Fallback)**:
+  - *Chosen Approach*: Load `adsbygoogle.js` with responsive container formatting, while detecting ad load events. If AdSense is pending approval or blocked, seamlessly render the fallback interactive preview.
+  - *Why*: Newly created AdSense accounts require site approval by Google before live ads appear. Dual-mode ensures the app functions immediately on development and testing environments without broken white boxes.
+- **Decision 3: Dedicated AdSense Configuration & Setup Guide**:
+  - *Chosen Approach*: Define centralized `ADSENSE_CONFIG` in `docs/app.js` and provide a step-by-step `ADSENSE_SETUP.md` guide explaining how to register the site and paste the publisher ID.
 
 ---
 
-## 4. Technical Architecture & Data Strategy
+## 4. Technical Architecture & Implementation Steps
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Vortex Community Ecosystem                       │
-└────────────────────────────────────────────────────────────────────────┘
-          ▲                                              ▲
-          │ WebRTC / Firestore                           │ Real-time Flow
-          ▼                                              ▼
-┌───────────────────────────────┐              ┌─────────────────────────┐
-│     Android Mobile App        │              │   GitHub Pages Web App  │
-│  (Kotlin, Compose, Firebase)  │              │  (/docs or gh-pages)    │
-│  • Jetpack Credential Manager │              │  • Firebase Web SDK     │
-│  • AES-GCM E2EE Engine        │              │  • SubtleCrypto E2EE    │
-│  • Low-Bandwidth Opus (6kbps) │              │  • Responsive 3-Pane UI │
-└──────────────┬────────────────┘              └────────────┬────────────┘
-               │                                            │
-               ▼                                            ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                Google Cloud / Firebase Project                         │
-│            Project ID: gen-lang-client-0796013424                      │
-│            Database: ai-studio-android-vortex-...                      │
-│  • /users/{userId}           • /servers/{serverId}                     │
-│  • /channels/{channelId}     • /messages/{messageId}                   │
-│  • /voice_sessions/{chId}    • /friend_requests/{reqId}                │
-└────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Frontend (docs/index.html & docs/app.js)                    │
+│  ├── Google AdSense Library Script Tag                       │
+│  │   └── pagead2.googlesyndication.com/pagead/js/adsbygoogle │
+│  ├── ADSENSE_CONFIG Object                                   │
+│  │   ├── client: "ca-pub-XXXXXXXXXXXXXXXX"                   │
+│  │   ├── slotId: "1234567890"                                │
+│  │   └── fallbackEnabled: true                               │
+│  └── watchAdForReward(type) Handler                          │
+│      ├── Dynamic <ins class="adsbygoogle"> Mount             │
+│      ├── adsbygoogle.push({}) invocation                     │
+│      ├── 15s Countdown Timer & Progress Animation            │
+│      └── claimAdReward() ➔ Firestore & LocalStorage Sync     │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### Components to Build & Deploy:
-1. **`/docs/index.html`**: Production-ready, responsive single-page web app with Firebase v10 SDK, Web Crypto AES-GCM, real-time Firestore listeners, and Discord UI.
-2. **`/docs/app.js`**: Core client business logic, authentication state observer, server/channel manager, voice room signaling, and E2EE cryptography matching `E2EEManager.kt`.
-3. **`/docs/style.css`**: Pixel-perfect Discord design system with desktop, tablet, and mobile breakpoints.
-4. **`.github/workflows/deploy-pages.yml`**: Official GitHub Pages Actions workflow for automated deployment.
-5. **`DEPLOYMENT.md`**: Clear, step-by-step documentation on how to push the repo to GitHub and activate GitHub Pages in repository settings.
+### Proposed Changes
+
+1. **`docs/index.html`**:
+   - Add AdSense script tag with configurable client publisher ID placeholder.
+   - Add responsive CSS wrapper styles for the AdSense unit inside `.ad-modal-card`.
+
+2. **`docs/app.js`**:
+   - Add `ADSENSE_CONFIG` constant at the top of the file for quick user updates.
+   - Update `watchAdForReward(rewardType)` to render the AdSense responsive ad container and invoke `(adsbygoogle = window.adsbygoogle || []).push({})`.
+   - Maintain the timer countdown and reward claiming workflow.
+
+3. **`ADSENSE_SETUP.md`**:
+   - Create a dedicated guide detailing:
+     - How to obtain an AdSense Publisher ID (`ca-pub-xxx`) and Ad Unit ID.
+     - How to replace the placeholder in `docs/index.html` and `docs/app.js`.
+     - How to add the GitHub Pages domain (`<username>.github.io`) to Google AdSense Sites list.
+     - Policy compliance notes ensuring ads only trigger upon user reward requests.
+
+4. **Android App (`Dialogs.kt`)**:
+   - Ensure the Android companion reward dialog notes reference AdSense / AdMob compatibility and instructions.
+
+---
+
+## Verification Plan
+
+1. **DOM & Script Loading**:
+   - Verify `docs/index.html` correctly includes the AdSense script tag without breaking offline/local execution.
+2. **Ad Modal Lifecycle**:
+   - Open Settings ➔ Nitro & Boosts ➔ trigger "Watch Ad".
+   - Confirm AdSense container initializes, countdown runs, and reward triggers properly.
+3. **Android Build Verification**:
+   - Run `compile_applet` to ensure full build compatibility.

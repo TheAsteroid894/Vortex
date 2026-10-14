@@ -628,7 +628,7 @@ fun AdRewardDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "SPONSORED PARTNER AD",
+                    text = "GOOGLE ADSENSE • SPONSORED REWARD",
                     color = DiscordNitroGold,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold

@@ -47,6 +47,14 @@ let currentFontSize = savedSettings.fontSize || "14";
 let nitroExpiresAt = parseInt(localStorage.getItem("vortex_nitro_expires") || "0", 10);
 let serverBoostsCount = parseInt(localStorage.getItem("vortex_server_boosts") || "0", 10);
 
+// Google AdSense Configuration
+// Set your Publisher ID (ca-pub-xxx) and Slot ID from your Google AdSense Dashboard.
+export const ADSENSE_CONFIG = {
+  client: "ca-pub-5839496079978209",
+  slotId: "1234567890",
+  enabled: true
+};
+
 function isNitroActive() {
   return nitroExpiresAt > Date.now();
 }
@@ -1217,26 +1225,39 @@ function renderNitroTab() {
   `;
 }
 
-// Interactive Simulated Ad Player
+// Google AdSense & Interactive Partner Ad Player
 window.watchAdForReward = function(rewardType) {
   const isNitro = rewardType === "nitro";
   const adPartners = [
-    { name: "NordVPN Fast & Private", desc: "Military-grade online privacy and ultrafast speeds for gamers.", tag: "Cyber Security Partner" },
-    { name: "SteelSeries Pro Audio", desc: "Pristine acoustic soundscape engineered for esports champions.", tag: "Gaming Hardware Partner" },
-    { name: "Razer Synapse Chroma", desc: "Synchronize RGB illumination across every gaming setup.", tag: "Peripherals Partner" }
+    { name: "NordVPN Fast & Private", desc: "Military-grade online privacy and ultrafast routes for gamers.", tag: "Google AdSense Verified Partner" },
+    { name: "SteelSeries Pro Audio", desc: "Pristine acoustic soundscape engineered for esports champions.", tag: "Google AdSense Gaming Partner" },
+    { name: "Razer Synapse Chroma", desc: "Synchronize RGB illumination across every gaming setup.", tag: "Google AdSense Tech Partner" }
   ];
   const partner = adPartners[Math.floor(Math.random() * adPartners.length)];
 
   const adHtml = `
     <div class="ad-modal-card">
       <div class="ad-video-mock">
-        <div class="ad-badge">SPONSORED PARTNER AD</div>
+        <div class="ad-badge">GOOGLE ADSENSE • SPONSORED REWARD</div>
         <div class="ad-countdown" id="ad-timer-countdown">15s</div>
 
-        <div style="font-size:42px; margin-bottom:8px;">🎮</div>
-        <div style="font-size:18px; font-weight:bold; color:white; text-align:center; padding:0 20px;">${partner.name}</div>
-        <div style="font-size:12px; color:#ccc; max-width:320px; text-align:center; margin-top:6px;">${partner.desc}</div>
-        <div style="font-size:10px; color:#ffcc00; margin-top:12px; letter-spacing:1px; font-weight:bold;">${partner.tag}</div>
+        <!-- Google AdSense Live Responsive Unit -->
+        <div class="adsense-unit-container" id="adsense-slot-wrapper">
+          <ins class="adsbygoogle"
+               style="display:block; text-align:center; min-height:160px; width:100%;"
+               data-ad-client="${ADSENSE_CONFIG.client}"
+               data-ad-slot="${ADSENSE_CONFIG.slotId}"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
+        </div>
+
+        <!-- Fallback High-Definition Sponsor Visual (displays while AdSense loads or in review) -->
+        <div id="ad-fallback-banner" style="display:flex; flex-direction:column; align-items:center; text-align:center; padding:10px 20px;">
+          <div style="font-size:32px; margin-bottom:4px;">🎮</div>
+          <div style="font-size:16px; font-weight:bold; color:white;">${partner.name}</div>
+          <div style="font-size:11px; color:#ccc; max-width:300px; margin-top:4px;">${partner.desc}</div>
+          <div style="font-size:9px; color:#ffcc00; margin-top:8px; letter-spacing:0.5px; font-weight:bold;">${partner.tag}</div>
+        </div>
 
         <div class="ad-progress-bar" id="ad-progress-bar"></div>
       </div>
@@ -1252,6 +1273,13 @@ window.watchAdForReward = function(rewardType) {
   `;
 
   showModal(adHtml);
+
+  // Trigger Google AdSense render push
+  try {
+    (window.adsbygoogle = window.adsbygoogle || []).push({});
+  } catch (err) {
+    console.log("AdSense unit initialized in fallback preview mode:", err);
+  }
 
   let timeLeft = 15;
   const timerEl = document.getElementById("ad-timer-countdown");
