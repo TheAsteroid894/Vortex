@@ -6,39 +6,40 @@ This repository contains the complete cross-platform **Vortex** system:
 
 ---
 
-## Quick Step-by-Step GitHub Pages Deployment
+## Deployment Methods
 
-### Step 1: Push Repository to GitHub
-If you haven't already pushed this project to your GitHub account:
-1. In AI Studio, click the **Settings / GitHub** icon or export the project as a ZIP.
-2. Or in your local git repository:
-   ```bash
-   git add .
-   git commit -m "Add Vortex Web companion and GitHub Pages deployment"
-   git branch -M main
-   git remote add origin https://github.com/<your-username>/<your-repo-name>.git
-   git push -u origin main
-   ```
+You have two easy ways to deploy on GitHub Pages:
 
----
-
-### Step 2: Enable GitHub Pages in 2 Clicks
-1. On GitHub, open your repository: `https://github.com/<your-username>/<your-repo-name>`
-2. Click **Settings** (top navigation tab with gear icon).
-3. In the left sidebar, click **Pages** (under the "Code and automation" section).
-4. Under **Build and deployment** > **Source**, select:
-   - **Deploy from a branch**
+### Method A: Native Branch Deployment (Recommended — No Actions Required)
+This is the simplest, zero-failure way to deploy because it does not require configuring GitHub Actions permissions:
+1. Go to your repository on GitHub.
+2. Click **Settings** (top navigation bar) → **Pages** (in the left sidebar).
+3. Under **Build and deployment** > **Source**:
+   - Select **Deploy from a branch**
    - Branch: **`main`** (or `master`)
    - Folder: **`/docs`**
-5. Click **Save**!
-6. In ~60 seconds, GitHub Pages will display your live site link:
-   `https://<your-username>.github.io/<your-repo-name>/`
-
-*(Alternative: You can also select **GitHub Actions** as the source, which will automatically run `.github/workflows/deploy-pages.yml` on every push!)*
+4. Click **Save**.
+5. Your site is live immediately at `https://<your-username>.github.io/<your-repo-name>/`.
 
 ---
 
-### Step 3: Enable Google Sign-In on Your GitHub Pages Domain
+### Method B: GitHub Actions Workflow (`deploy-pages.yml`)
+If you prefer automated CI/CD using GitHub Actions:
+1. Go to **Settings** → **Pages**.
+2. Under **Build and deployment** > **Source**, change the dropdown to **GitHub Actions**.
+   > **Note:** If you run the workflow while Source is NOT set to "GitHub Actions", GitHub returns a `404 Not Found / Get Pages site failed` error.
+3. The workflow in `.github/workflows/deploy-pages.yml` is already configured with:
+   ```yaml
+   with:
+     enablement: true
+     token: ${{ secrets.GITHUB_TOKEN }}
+   ```
+   This automatically enables the Pages API if it was not enabled before.
+4. Go to **Actions** tab on GitHub → Click **Deploy Vortex Web to GitHub Pages** → Click **Run workflow**.
+
+---
+
+## Step 3: Enable Google Sign-In on Your GitHub Pages Domain
 To allow users to sign in with their Google accounts on your custom GitHub Pages domain:
 1. Go to the [Firebase Console](https://console.firebase.google.com/).
 2. Select the project: **`gen-lang-client-0796013424`**.
