@@ -1,55 +1,59 @@
-# Vortex Web - GitHub Pages Deployment Guide
+# Vortex Web - Manual GitHub Pages Deployment Guide
 
-This repository contains the complete cross-platform **Vortex** system:
-1. **Android Native Application**: Built with Jetpack Compose, Kotlin, Credential Manager, and Firebase SDK.
-2. **Web Companion Application**: Located in `/docs` (and bundled in Android assets), connecting directly to the same live Firebase Firestore database (`ai-studio-android-vortex-e2d58943-f665-4c2a-bdf6-e27d84876409`) with AES-GCM End-to-End Encryption.
+Your production web client is completely ready in the `/docs` directory (`/docs/index.html`, `/docs/app.js`, `/docs/style.css`).
+
+Manual branch deployment is the official, zero-failure method that **does not require GitHub Actions, tokens, or workflow permissions**.
 
 ---
 
-## Deployment Methods
+## 3-Step Manual Deployment
 
-You have two easy ways to deploy on GitHub Pages:
+### Step 1: Push Your Code
+Ensure your latest changes (including the `/docs` folder) are pushed to GitHub:
+```bash
+git add .
+git commit -m "Add Vortex Web companion in /docs"
+git push origin main
+```
 
-### Method A: Native Branch Deployment (Recommended — No Actions Required)
-This is the simplest, zero-failure way to deploy because it does not require configuring GitHub Actions permissions:
-1. Go to your repository on GitHub.
-2. Click **Settings** (top navigation bar) → **Pages** (in the left sidebar).
-3. Under **Build and deployment** > **Source**:
-   - Select **Deploy from a branch**
+---
+
+### Step 2: Enable GitHub Pages in 2 Clicks
+1. Open your repository on GitHub:
+   `https://github.com/<your-username>/<your-repo-name>`
+2. Click **Settings** (top navigation bar, with the gear icon).
+3. In the left-hand sidebar, click **Pages** (under the "Code and automation" section).
+4. Under **Build and deployment** > **Source**, choose:
+   - Source: **Deploy from a branch**
    - Branch: **`main`** (or `master`)
-   - Folder: **`/docs`**
-4. Click **Save**.
-5. Your site is live immediately at `https://<your-username>.github.io/<your-repo-name>/`.
+   - Folder: **`/docs`** *(critical: select `/docs`, not `/ (root)`)*
+5. Click **Save**.
+
+That's it! GitHub will publish your site in ~30–60 seconds at:
+```
+https://<your-username>.github.io/<your-repo-name>/
+```
+A green box will appear at the top of that page with the link once it finishes.
 
 ---
 
-### Method B: GitHub Actions Workflow (`deploy-pages.yml`)
-If you prefer automated CI/CD using GitHub Actions:
-1. Go to **Settings** → **Pages**.
-2. Under **Build and deployment** > **Source**, change the dropdown to **GitHub Actions**.
-   > **Note:** If you run the workflow while Source is NOT set to "GitHub Actions", GitHub returns a `404 Not Found / Get Pages site failed` error.
-3. The workflow in `.github/workflows/deploy-pages.yml` is already configured with:
-   ```yaml
-   with:
-     enablement: true
-     token: ${{ secrets.GITHUB_TOKEN }}
-   ```
-   This automatically enables the Pages API if it was not enabled before.
-4. Go to **Actions** tab on GitHub → Click **Deploy Vortex Web to GitHub Pages** → Click **Run workflow**.
-
----
-
-## Step 3: Enable Google Sign-In on Your GitHub Pages Domain
-To allow users to sign in with their Google accounts on your custom GitHub Pages domain:
-1. Go to the [Firebase Console](https://console.firebase.google.com/).
-2. Select the project: **`gen-lang-client-0796013424`**.
-3. In the left navigation menu, click **Authentication** (under Build).
-4. Go to the **Settings** tab at the top.
-5. Under **Authorized domains**, click **Add domain**.
-6. Type your GitHub domain:
+### Step 3: Authorize Google Sign-In on Your GitHub Domain
+To allow users to sign in with their Google accounts on your live GitHub Pages URL:
+1. Open [Firebase Console](https://console.firebase.google.com/) and click your project: **`gen-lang-client-0796013424`**.
+2. In the left menu, click **Authentication** (under Build).
+3. Click the **Settings** tab at the top.
+4. Under **Authorized domains**, click **Add domain**.
+5. Type your GitHub domain:
    ```
    <your-username>.github.io
    ```
-7. Click **Done**.
+6. Click **Done**.
 
-Now your web users can sign in with Google, send encrypted messages, join voice stages, and share large media files seamlessly with all Android mobile users in real time!
+---
+
+### Summary of Live Features on Web:
+- **Real-Time Cross-Platform Sync**: All servers, channels, and messages created on Android or Web sync instantly via Firebase Firestore.
+- **End-to-End Encryption (E2EE)**: Messages encrypted with AES-GCM-256 before leaving your browser.
+- **Voice & Video Stage**: Live participant tiles with speaking rings, mute, deafen, and screen sharing.
+- **Direct Messages**: Chat 1-on-1 with friends using their username and tag.
+- **Free Nitro Perks**: Drag & drop 500MB file uploads, custom emojis, and level 3 server boosts.
