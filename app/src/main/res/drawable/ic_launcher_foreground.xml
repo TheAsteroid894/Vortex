@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Drop shadow -->
+    <path
+        android:fillColor="#33000000"
+        android:pathData="M32,40 C32,32 38,26 46,26 L62,26 C70,26 76,32 76,40 L76,60 C76,68 70,74 62,74 L46,74 C42,74 38,72 35,69 L28,76 L28,64 C30,61 32,56 32,52 Z" />
+    <!-- Speech bubble body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,38 C30,30 36,24 44,24 L64,24 C72,24 78,30 78,38 L78,58 C78,66 72,72 64,72 L48,72 L36,80 L36,70 C32.4,67.6 30,63.1 30,58 Z" />
+    <!-- Gamepad / audio waves cutouts inside -->
+    <!-- Left eye / button -->
+    <path
+        android:fillColor="#5865F2"
+        android:pathData="M44,48 A 4 4 0 1 0 44,40 A 4 4 0 1 0 44,48 Z" />
+    <!-- Right eye / button -->
+    <path
+        android:fillColor="#5865F2"
+        android:pathData="M64,48 A 4 4 0 1 0 64,40 A 4 4 0 1 0 64,48 Z" />
+    <!-- Center smile / wave link -->
+    <path
+        android:fillColor="#5865F2"
+        android:pathData="M48,56 C50,59 58,59 60,56 C61,54.5 62.5,55.5 61.5,57 C59,61 49,61 46.5,57 C45.5,55.5 47,54.5 48,56 Z" />
+    <!-- Golden Nitro Diamond in top-right corner of badge -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M70,30 L74,25 L78,30 L74,35 Z" />
+</vector>

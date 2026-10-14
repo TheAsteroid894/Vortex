@@ -1,0 +1,256 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Vortex user profile and preferences including free Nitro perks and bandwidth settings",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Unique Google user ID"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name"
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address"
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Profile picture URL or avatar identifier"
+        },
+        "customTag": {
+          "type": "string",
+          "description": "Discord-style discriminator tag, e.g. #0001 or #1337"
+        },
+        "bannerColor": {
+          "type": "string",
+          "description": "Custom profile banner color"
+        },
+        "bio": {
+          "type": "string",
+          "description": "User profile bio or status text"
+        },
+        "nitroActive": {
+          "type": "boolean",
+          "description": "Free Nitro perks active status"
+        },
+        "lowBandwidthMode": {
+          "type": "boolean",
+          "description": "Whether low-bandwidth data saver mode is enabled"
+        },
+        "audioBitrateKbps": {
+          "type": "number",
+          "description": "Audio bitrate in kbps (e.g. 6 for low bandwidth, 64 standard, 128 hi-fi)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Profile last updated timestamp"
+        }
+      },
+      "required": ["userId", "displayName", "email", "createdAt"]
+    },
+    "Server": {
+      "title": "Server",
+      "description": "Discord-style community server guild",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "User ID of server owner"
+        },
+        "name": {
+          "type": "string",
+          "description": "Server name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Server description or topic"
+        },
+        "iconUrl": {
+          "type": "string",
+          "description": "Server icon URL or preset emoji identifier"
+        },
+        "bannerUrl": {
+          "type": "string",
+          "description": "Server header banner URL"
+        },
+        "inviteCode": {
+          "type": "string",
+          "description": "Unique short invite code, e.g. VTX-7842"
+        },
+        "memberIds": {
+          "type": "array",
+          "description": "List of user IDs who are members of this server"
+        },
+        "boostLevel": {
+          "type": "number",
+          "description": "Server Boost Level (unlocked up to level 3 for free)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last modified timestamp"
+        }
+      },
+      "required": ["ownerId", "name", "inviteCode", "memberIds", "createdAt"]
+    },
+    "Channel": {
+      "title": "Channel",
+      "description": "Text, voice, or video streaming channel inside a server",
+      "type": "object",
+      "properties": {
+        "serverId": {
+          "type": "string",
+          "description": "Parent server ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Channel name (e.g. general, lounge)"
+        },
+        "topic": {
+          "type": "string",
+          "description": "Channel topic or purpose"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["TEXT", "VOICE", "VIDEO"],
+          "description": "Channel media type"
+        },
+        "isEncrypted": {
+          "type": "boolean",
+          "description": "Whether messages or media streams are end-to-end encrypted"
+        },
+        "bitrateKbps": {
+          "type": "number",
+          "description": "Configured channel bitrate"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Channel creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Channel last updated timestamp"
+        }
+      },
+      "required": ["serverId", "name", "type", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Channel text message with E2EE support and large media attachments",
+      "type": "object",
+      "properties": {
+        "serverId": {
+          "type": "string",
+          "description": "Parent server ID"
+        },
+        "channelId": {
+          "type": "string",
+          "description": "Parent channel ID"
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Sender user ID"
+        },
+        "senderName": {
+          "type": "string",
+          "description": "Sender display name"
+        },
+        "senderAvatar": {
+          "type": "string",
+          "description": "Sender avatar"
+        },
+        "content": {
+          "type": "string",
+          "description": "Message content (plain or AES-GCM cipher payload)"
+        },
+        "isEncrypted": {
+          "type": "boolean",
+          "description": "True if payload is end-to-end encrypted"
+        },
+        "attachments": {
+          "type": "array",
+          "description": "List of attached media/files metadata and payloads"
+        },
+        "reactions": {
+          "type": "array",
+          "description": "List of emoji reactions"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["serverId", "channelId", "senderId", "senderName", "content", "createdAt"]
+    },
+    "VoiceSession": {
+      "title": "VoiceSession",
+      "description": "Live voice or video room state and participant signaling",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "description": "Channel ID"
+        },
+        "serverId": {
+          "type": "string",
+          "description": "Server ID"
+        },
+        "activeParticipants": {
+          "type": "array",
+          "description": "List of active participant states (user ID, audio/video status)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last signaling heartbeat timestamp"
+        }
+      },
+      "required": ["channelId", "serverId", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles and settings"
+    },
+    "/servers/{serverId}": {
+      "schema": { "$ref": "#/entities/Server" },
+      "description": "Discord community servers"
+    },
+    "/servers/{serverId}/channels/{channelId}": {
+      "schema": { "$ref": "#/entities/Channel" },
+      "description": "Server channels (text, voice, video)"
+    },
+    "/servers/{serverId}/channels/{channelId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Messages inside a channel"
+    },
+    "/voice_sessions/{channelId}": {
+      "schema": { "$ref": "#/entities/VoiceSession" },
+      "description": "Active voice and video room states"
+    }
+  }
+}
