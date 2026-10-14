@@ -22,9 +22,13 @@ service cloud.firestore {
              (!('username' in data) || data.username is string) &&
              (!('customTag' in data) || data.customTag is string) &&
              (!('bannerColor' in data) || data.bannerColor is string) &&
+             (!('photoURL' in data) || data.photoURL is string) &&
              (!('bio' in data) || data.bio is string) &&
              (!('nitroActive' in data) || data.nitroActive is bool) &&
              (!('nitroExpiresAt' in data) || data.nitroExpiresAt is number) &&
+             (!('gradColor1' in data) || data.gradColor1 is string) &&
+             (!('gradColor2' in data) || data.gradColor2 is string) &&
+             (!('gradAngle' in data) || data.gradAngle is string) &&
              (!('customGradient' in data) || data.customGradient is string) &&
              (!('theme' in data) || data.theme is string) &&
              (!('serverIds' in data) || data.serverIds is list) &&
@@ -46,7 +50,9 @@ service cloud.firestore {
              (!('roles' in data) || data.roles is list) &&
              (!('members' in data) || data.members is list) &&
              (!('bannedUserIds' in data) || data.bannedUserIds is list) &&
-             (!('mutedUserIds' in data) || data.mutedUserIds is list);
+             (!('mutedUserIds' in data) || data.mutedUserIds is list) &&
+             (!('safetySettings' in data) || data.safetySettings is map) &&
+             (!('auditLogs' in data) || data.auditLogs is list);
     }
 
     function isValidChannel(data) {
@@ -67,9 +73,11 @@ service cloud.firestore {
              data.content is string &&
              data.createdAt is timestamp &&
              (!('senderAvatar' in data) || data.senderAvatar is string) &&
+             (!('senderPhotoURL' in data) || data.senderPhotoURL is string) &&
              (!('isEncrypted' in data) || data.isEncrypted is bool) &&
              (!('attachments' in data) || data.attachments is list) &&
-             (!('reactions' in data) || data.reactions is list);
+             (!('reactions' in data) || data.reactions is list) &&
+             (!('isPinned' in data) || data.isPinned is bool);
     }
 
     function isValidVoiceSession(data) {

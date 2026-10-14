@@ -45,11 +45,21 @@ let currentTheme = localStorage.getItem("vortex_theme") || savedSettings.theme |
 let currentAccent = localStorage.getItem("vortex_accent") || savedSettings.accent || "#5865f2";
 let currentFont = localStorage.getItem("vortex_font") || savedSettings.font || "sans";
 let currentFontSize = localStorage.getItem("vortex_font_size") || savedSettings.fontSize || "14";
-let customGradient = localStorage.getItem("vortex_custom_gradient") || savedSettings.customGradient || "linear-gradient(135deg, #18002e, #4b0082, #ff007f)";
 
-// Nitro & Server Boosts state (monthly, unlocked via watching Ads)
+// Dual Hex Gradient Configuration (Nitro feature with two customizable hex color stops)
+let gradientColor1 = localStorage.getItem("vortex_grad_c1") || savedSettings.gradColor1 || "#18002e";
+let gradientColor2 = localStorage.getItem("vortex_grad_c2") || savedSettings.gradColor2 || "#ff007f";
+let gradientAngle = localStorage.getItem("vortex_grad_angle") || savedSettings.gradAngle || "135";
+let customGradient = localStorage.getItem("vortex_custom_gradient") || savedSettings.customGradient || `linear-gradient(${gradientAngle}deg, ${gradientColor1}, ${gradientColor2})`;
+
+// Nitro & Server Boosts state (monthly, unlocked via watching Ads or instant 1-click test)
 let nitroExpiresAt = parseInt(localStorage.getItem("vortex_nitro_expires") || "0", 10);
-let serverBoostsCount = parseInt(localStorage.getItem("vortex_server_boosts") || "0", 10);
+// Default grant 30 days of Nitro on fresh boot so users can immediately test custom dual-hex gradients!
+if (nitroExpiresAt === 0) {
+  nitroExpiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+  localStorage.setItem("vortex_nitro_expires", nitroExpiresAt);
+}
+let serverBoostsCount = parseInt(localStorage.getItem("vortex_server_boosts") || "2", 10);
 
 // Google AdSense Configuration
 // Set your Publisher ID (ca-pub-xxx) and Slot ID from your Google AdSense Dashboard.
@@ -68,7 +78,7 @@ function getNitroDaysRemaining() {
   return Math.ceil((nitroExpiresAt - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
-// State variables (support username, display name, custom tag)
+// State variables (support username, display name, custom tag, photoURL)
 let currentUser = {
   uid: "guest_" + Math.random().toString(36).substring(2, 8),
   displayName: localStorage.getItem("vortex_display_name") || "Vortex User",
@@ -76,17 +86,28 @@ let currentUser = {
   tag: localStorage.getItem("vortex_tag") || "#1337",
   bio: localStorage.getItem("vortex_bio") || "Exploring the decentralized metaverse with Vortex.",
   bannerColor: localStorage.getItem("vortex_banner_color") || "#5865f2",
-  photoURL: "",
+  photoURL: localStorage.getItem("vortex_photo_url") || "",
   isGuest: true
 };
 
-// User Servers (clean start - real Firestore sync)
-let userServers = JSON.parse(localStorage.getItem("vortex_servers") || "[]");
-let currentServer = userServers.length > 0 ? userServers[0] : null;
+// User Servers (clean start - real Firestore sync & purge legacy placeholder members)
+let rawServers = JSON.parse(localStorage.getItem("vortex_servers") || "[]");
+let userServers = rawServers.map(s => {
+  if (!s || typeof s !== "object") return s;
+  if (Array.isArray(s.members)) {
+    s.members = s.members.filter(m => m && m.displayName !== "Cyber_Samurai" && m.displayName !== "Echo_Dev" && m.uid !== "cyber_samurai" && m.uid !== "echo_dev");
+  }
+  return s;
+});
+localStorage.setItem("vortex_servers", JSON.stringify(userServers));
+let currentServer = null; // Start cleanly in Direct Messages Hub by default
 
 // User Direct Messages (clean start - no default mock DMs)
-let userDMs = JSON.parse(localStorage.getItem("vortex_dms") || "[]");
-let currentChannel = { id: "general", name: "general", type: "TEXT", isEncrypted: true };
+let rawDMs = JSON.parse(localStorage.getItem("vortex_dms") || "[]");
+let userDMs = rawDMs.filter(d => d && d.name !== "Echo_Dev" && d.name !== "Cyber_Samurai");
+localStorage.setItem("vortex_dms", JSON.stringify(userDMs));
+
+let currentChannel = { id: "dms_home", name: "Direct Messages", type: "TEXT", isEncrypted: true };
 
 let currentMessagesList = [];
 let pinnedMessagesList = JSON.parse(localStorage.getItem("vortex_pinned_msgs") || "[]");
@@ -122,12 +143,18 @@ function applyAppearance() {
   localStorage.setItem("vortex_accent", currentAccent);
   localStorage.setItem("vortex_font", currentFont);
   localStorage.setItem("vortex_font_size", currentFontSize);
+  localStorage.setItem("vortex_grad_c1", gradientColor1);
+  localStorage.setItem("vortex_grad_c2", gradientColor2);
+  localStorage.setItem("vortex_grad_angle", gradientAngle);
   localStorage.setItem("vortex_custom_gradient", customGradient);
   localStorage.setItem("vortex_appearance", JSON.stringify({
     theme: currentTheme,
     accent: currentAccent,
     font: currentFont,
     fontSize: currentFontSize,
+    gradColor1: gradientColor1,
+    gradColor2: gradientColor2,
+    gradAngle: gradientAngle,
     customGradient: customGradient
   }));
 }
@@ -326,12 +353,23 @@ function listenToUserServers(userId) {
           memberIds: sData.memberIds || [userId],
           bannedUserIds: sData.bannedUserIds || [],
           mutedUserIds: sData.mutedUserIds || [],
+          safetySettings: sData.safetySettings || {
+            verificationLevel: "low",
+            filterVulgarity: true,
+            blockInviteLinks: true,
+            antiPhishing: true,
+            mentionSpamLimit: 5
+          },
+          auditLogs: sData.auditLogs || [],
           boostLevel: sData.boostLevel || 1
         });
       });
-      userServers = serverList;
-      localStorage.setItem("vortex_servers", JSON.stringify(userServers));
-      renderServerRail();
+
+      if (serverList.length > 0) {
+        userServers = serverList;
+        localStorage.setItem("vortex_servers", JSON.stringify(userServers));
+        renderServerRail();
+      }
 
       if (currentServer) {
         const updated = userServers.find(s => s.id === currentServer.id);
@@ -368,7 +406,7 @@ onAuthStateChanged(auth, async (user) => {
           tag: uData.customTag || ("#" + user.uid.substring(0, 4).toUpperCase()),
           bio: uData.bio || "Vortex member since 2026",
           bannerColor: uData.bannerColor || "#5865f2",
-          photoURL: user.photoURL || "",
+          photoURL: uData.photoURL || user.photoURL || localStorage.getItem("vortex_photo_url") || "",
           isGuest: false
         };
 
@@ -376,8 +414,23 @@ onAuthStateChanged(auth, async (user) => {
           nitroExpiresAt = uData.nitroExpiresAt;
           localStorage.setItem("vortex_nitro_expires", nitroExpiresAt);
         }
+        if (uData.gradColor1) {
+          gradientColor1 = uData.gradColor1;
+          localStorage.setItem("vortex_grad_c1", gradientColor1);
+        }
+        if (uData.gradColor2) {
+          gradientColor2 = uData.gradColor2;
+          localStorage.setItem("vortex_grad_c2", gradientColor2);
+        }
+        if (uData.gradAngle) {
+          gradientAngle = uData.gradAngle;
+          localStorage.setItem("vortex_grad_angle", gradientAngle);
+        }
         if (uData.customGradient) {
           customGradient = uData.customGradient;
+          localStorage.setItem("vortex_custom_gradient", customGradient);
+        } else if (gradientColor1 && gradientColor2) {
+          customGradient = `linear-gradient(${gradientAngle}deg, ${gradientColor1}, ${gradientColor2})`;
           localStorage.setItem("vortex_custom_gradient", customGradient);
         }
         if (uData.theme) {
@@ -393,7 +446,7 @@ onAuthStateChanged(auth, async (user) => {
           tag: localStorage.getItem("vortex_tag") || ("#" + user.uid.substring(0, 4).toUpperCase()),
           bio: localStorage.getItem("vortex_bio") || "Exploring the decentralized metaverse with Vortex.",
           bannerColor: localStorage.getItem("vortex_banner_color") || "#5865f2",
-          photoURL: user.photoURL || "",
+          photoURL: user.photoURL || localStorage.getItem("vortex_photo_url") || "",
           isGuest: false
         };
 
@@ -404,9 +457,13 @@ onAuthStateChanged(auth, async (user) => {
           customTag: currentUser.tag,
           bio: currentUser.bio,
           bannerColor: currentUser.bannerColor,
+          photoURL: currentUser.photoURL,
           email: user.email || "",
           nitroActive: isNitroActive(),
           nitroExpiresAt: nitroExpiresAt,
+          gradColor1: gradientColor1,
+          gradColor2: gradientColor2,
+          gradAngle: gradientAngle,
           customGradient: customGradient,
           theme: currentTheme,
           createdAt: serverTimestamp()
@@ -419,6 +476,7 @@ onAuthStateChanged(auth, async (user) => {
       localStorage.setItem("vortex_tag", currentUser.tag);
       localStorage.setItem("vortex_bio", currentUser.bio);
       localStorage.setItem("vortex_banner_color", currentUser.bannerColor);
+      localStorage.setItem("vortex_photo_url", currentUser.photoURL);
       applyAppearance();
     } catch (e) {
       console.warn("Firestore user sync error:", e);
@@ -445,6 +503,8 @@ function updateUserProfileDisplay() {
   const nameEl = document.getElementById("user-display-name");
   const tagEl = document.getElementById("user-custom-tag");
   const avatarEl = document.getElementById("user-avatar-text");
+  const avatarImg = document.getElementById("user-avatar-img");
+
   if (nameEl) nameEl.innerText = currentUser.displayName;
   if (tagEl) {
     const handleStr = currentUser.username ? `@${currentUser.username}` : "";
@@ -453,6 +513,17 @@ function updateUserProfileDisplay() {
   }
   const initial = (currentUser.displayName[0] || "U").toUpperCase();
   if (avatarEl) avatarEl.innerText = initial;
+
+  if (avatarImg) {
+    if (currentUser.photoURL) {
+      avatarImg.src = currentUser.photoURL;
+      avatarImg.style.display = "block";
+      if (avatarEl) avatarEl.style.display = "none";
+    } else {
+      avatarImg.style.display = "none";
+      if (avatarEl) avatarEl.style.display = "block";
+    }
+  }
 
   const boostBadge = document.getElementById("server-boost-badge");
   if (boostBadge) {
@@ -466,16 +537,48 @@ function updateUserProfileDisplay() {
   }
 }
 
-// --- Server Header Click Handler ---
-window.handleServerHeaderClick = function() {
-  if (currentServer) {
-    window.openServerSettings();
-  } else {
-    window.openAddFriendModal();
+// --- Server Header Dropdown & Click Handlers ---
+window.toggleServerDropdown = function(event) {
+  if (event) event.stopPropagation();
+  if (!currentServer) {
+    window.openAddServerModal();
+    return;
+  }
+  const menu = document.getElementById("server-dropdown-menu");
+  if (menu) {
+    const isShown = menu.style.display === "flex";
+    menu.style.display = isShown ? "none" : "flex";
+    const icon = document.getElementById("server-header-dropdown-icon");
+    if (icon) icon.style.transform = isShown ? "rotate(0deg)" : "rotate(180deg)";
   }
 };
 
-// --- Direct Messages Hub (Removes Server Channels from DMs!) ---
+window.copyServerInviteLink = function() {
+  if (!currentServer) return;
+  const link = `https://${window.location.host}/#${currentServer.inviteCode || 'VTX-7742'}`;
+  navigator.clipboard.writeText(link).then(() => {
+    alert("📋 Invite link copied to clipboard:\n" + link);
+  }).catch(() => {
+    alert("Server Invite Code: " + (currentServer.inviteCode || 'VTX-7742'));
+  });
+  const menu = document.getElementById("server-dropdown-menu");
+  if (menu) menu.style.display = "none";
+  const icon = document.getElementById("server-header-dropdown-icon");
+  if (icon) icon.style.transform = "rotate(0deg)";
+};
+
+// Global click outside to close server dropdown
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("server-dropdown-menu");
+  const header = document.getElementById("server-header-bar");
+  if (menu && menu.style.display === "flex" && header && !header.contains(e.target) && !menu.contains(e.target)) {
+    menu.style.display = "none";
+    const icon = document.getElementById("server-header-dropdown-icon");
+    if (icon) icon.style.transform = "rotate(0deg)";
+  }
+});
+
+// --- Direct Messages Hub (Completely Isolates DMs from Server Channels!) ---
 window.openDirectMessagesHub = function() {
   currentServer = null;
   document.querySelectorAll(".server-icon").forEach(el => el.classList.remove("active"));
@@ -487,14 +590,30 @@ window.openDirectMessagesHub = function() {
 
   const boostBadge = document.getElementById("server-boost-badge");
   if (boostBadge) boostBadge.style.display = "none";
-  const gear = document.getElementById("server-header-gear");
-  if (gear) gear.innerText = "";
 
-  // Hide server channels, show direct messages
+  const dropdownIcon = document.getElementById("server-header-dropdown-icon");
+  if (dropdownIcon) dropdownIcon.style.display = "none";
+
+  const quickBar = document.getElementById("server-quick-action-bar");
+  if (quickBar) quickBar.style.display = "none";
+
+  const chatServerSettingsBtn = document.getElementById("chat-header-server-settings-btn");
+  if (chatServerSettingsBtn) chatServerSettingsBtn.style.display = "none";
+
+  const dropdownMenu = document.getElementById("server-dropdown-menu");
+  if (dropdownMenu) dropdownMenu.style.display = "none";
+
+  // Hide server channels completely, show direct messages only
   const dmsSection = document.getElementById("dms-sidebar-section");
   const serverSection = document.getElementById("server-channels-section");
   if (dmsSection) dmsSection.style.display = "block";
   if (serverSection) serverSection.style.display = "none";
+
+  // Clear server channels container DOM so nothing leaks into DMs
+  const channelListEl = document.getElementById("text-channels-container");
+  const voiceListEl = document.getElementById("voice-channels-container");
+  if (channelListEl) channelListEl.innerHTML = "";
+  if (voiceListEl) voiceListEl.innerHTML = "";
 
   window.switchChannel("dms_home", "Direct Messages", "TEXT", true);
   renderDMsList();
@@ -534,8 +653,18 @@ function selectServer(server) {
       boostBadge.innerText = lvl >= 3 ? "LVL 3 🚀" : `LVL ${lvl} 🚀`;
     }
   }
-  const gear = document.getElementById("server-header-gear");
-  if (gear) gear.innerText = server ? "⚙️" : "";
+
+  const dropdownIcon = document.getElementById("server-header-dropdown-icon");
+  if (dropdownIcon) dropdownIcon.style.display = server ? "inline" : "none";
+
+  const quickBar = document.getElementById("server-quick-action-bar");
+  if (quickBar) quickBar.style.display = server ? "flex" : "none";
+
+  const chatServerSettingsBtn = document.getElementById("chat-header-server-settings-btn");
+  if (chatServerSettingsBtn) chatServerSettingsBtn.style.display = server ? "flex" : "none";
+
+  const dropdownMenu = document.getElementById("server-dropdown-menu");
+  if (dropdownMenu) dropdownMenu.style.display = "none";
 
   // Hide direct messages, show server channels
   const dmsSection = document.getElementById("dms-sidebar-section");
@@ -708,6 +837,7 @@ function listenToMessages() {
           id: docSnap.id,
           senderName: msg.senderName,
           senderId: msg.senderId,
+          senderPhotoURL: msg.senderPhotoURL || "",
           content: displayContent,
           isEncrypted: msg.isEncrypted,
           createdAt: msg.createdAt,
@@ -752,6 +882,10 @@ function renderMessageCard(msg) {
     ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const initial = (msg.senderName[0] || "U").toUpperCase();
+  const senderPhoto = msg.senderPhotoURL || (msg.senderId === currentUser.uid ? currentUser.photoURL : "");
+  const avatarHtml = senderPhoto
+    ? `<div class="avatar" style="position:relative; overflow:hidden; padding:0; background:none;"><img src="${escapeHtml(senderPhoto)}" alt="Avatar" style="width:100%; height:100%; object-fit:cover; border-radius:50%;"></div>`
+    : `<div class="avatar">${initial}</div>`;
 
   let attachmentsHtml = "";
   if (msg.attachments && msg.attachments.length > 0) {
@@ -798,7 +932,7 @@ function renderMessageCard(msg) {
       ${msg.senderId === currentUser.uid ? `<button class="action-btn" title="Delete Message" onclick="deleteMessageAction('${msg.id}')">🗑️</button>` : ''}
     </div>
 
-    <div class="avatar">${initial}</div>
+    ${avatarHtml}
     <div class="message-content-wrap" style="flex:1;">
       <div class="message-author-row" style="display:flex; align-items:center; gap:8px;">
         <span class="message-author" style="font-weight:600; color:var(--header-primary);">${escapeHtml(msg.senderName)}</span>
@@ -1195,6 +1329,7 @@ window.sendMessage = async function() {
       channelId: currentChannel.id,
       senderId: currentUser.uid,
       senderName: currentUser.displayName,
+      senderPhotoURL: currentUser.photoURL || "",
       content: finalContent,
       isEncrypted: isE2EEActive,
       attachments: [],
@@ -1207,6 +1342,7 @@ window.sendMessage = async function() {
       id: "local_" + Date.now(),
       senderName: currentUser.displayName,
       senderId: currentUser.uid,
+      senderPhotoURL: currentUser.photoURL || "",
       content: text,
       isEncrypted: isE2EEActive,
       createdAt: { toDate: () => new Date() },
@@ -1298,8 +1434,14 @@ window.openSettings = function(initialTab = "my-account") {
       <div class="settings-sidebar">
         <div class="settings-section-title">USER SETTINGS</div>
         <button class="settings-tab-btn ${initialTab === 'my-account' ? 'active' : ''}" onclick="switchSettingsTab('my-account')">👤 Profile & Identity</button>
-        <button class="settings-tab-btn ${initialTab === 'appearance' ? 'active' : ''}" onclick="switchSettingsTab('appearance')">🎨 Themes & Styling</button>
+        <button class="settings-tab-btn ${initialTab === 'appearance' ? 'active' : ''}" onclick="switchSettingsTab('appearance')">🎨 Themes & Dual-Hex</button>
         <button class="settings-tab-btn ${initialTab === 'gradient' ? 'active' : ''}" onclick="switchSettingsTab('gradient')">🌈 Custom Gradient (Nitro)</button>
+
+        <div class="settings-section-title">SERVER SETTINGS</div>
+        <button class="settings-tab-btn" onclick="closeModal(); openServerSettings('overview')">⚙️ Server Overview</button>
+        <button class="settings-tab-btn" onclick="closeModal(); openServerSettings('roles')">🛡️ Roles & Permissions</button>
+        <button class="settings-tab-btn" onclick="closeModal(); openServerSettings('safety')">🛡️ Moderation & Safety</button>
+        <button class="settings-tab-btn" onclick="closeModal(); openServerSettings('members')">👥 Members & Moderation</button>
 
         <div class="settings-section-title">REWARDS & HARDWARE</div>
         <button class="settings-tab-btn ${initialTab === 'nitro' ? 'active' : ''}" onclick="switchSettingsTab('nitro')">💎 Nitro & Server Boosts</button>
@@ -1377,18 +1519,22 @@ function renderMyAccountTab() {
   const currentHandle = currentUser.username ? `@${currentUser.username}` : "";
   const tagDisplay = currentUser.tag || "#1337";
   const fullTagString = currentHandle ? `${currentHandle} • ${tagDisplay}` : tagDisplay;
+  const hasPfp = Boolean(currentUser.photoURL);
 
   return `
     <div class="settings-pane-title">User Profile & Identity</div>
-    <div class="settings-pane-desc">Manage your display name, custom discriminator tag, and active theme. All preferences are automatically persisted in your browser via localStorage.</div>
+    <div class="settings-pane-desc">Manage your profile picture, display name, custom discriminator tag, and themes. Preferences automatically sync across your devices via your Google Account!</div>
 
     <!-- Live Preview Card -->
     <div style="background:var(--input-dark); border-radius:10px; overflow:hidden; border:1px solid var(--border-subtle); margin-bottom:24px; box-shadow:0 4px 16px rgba(0,0,0,0.2);">
       <div id="preview-banner" style="height:80px; background:${currentUser.bannerColor || 'var(--brand-blurple)'}; transition:background 0.2s ease;"></div>
       <div style="padding:16px; position:relative; display:flex; justify-content:space-between; align-items:flex-end;">
         <div style="margin-top:-48px; display:flex; align-items:flex-end; gap:14px;">
-          <div id="preview-avatar-letter" style="width:72px; height:72px; border-radius:50%; background:var(--brand-blurple); border:4px solid var(--surface-dark); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; color:white;">
-            ${(currentUser.displayName[0] || 'U').toUpperCase()}
+          <div id="preview-avatar-container" style="position:relative;">
+            ${hasPfp
+              ? `<img id="preview-avatar-img" class="avatar-preview-img" src="${escapeHtml(currentUser.photoURL)}" alt="Avatar">`
+              : `<div id="preview-avatar-letter" style="width:72px; height:72px; border-radius:50%; background:var(--brand-blurple); border:4px solid var(--surface-dark); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; color:white;">${(currentUser.displayName[0] || 'U').toUpperCase()}</div>`
+            }
           </div>
           <div>
             <div id="preview-display-name" style="font-size:18px; font-weight:bold; color:var(--header-primary);">${escapeHtml(currentUser.displayName)}</div>
@@ -1406,6 +1552,60 @@ function renderMyAccountTab() {
 
     <!-- Identity & Tag Management Form -->
     <div style="display:flex; flex-direction:column; gap:18px;">
+      
+      <!-- Profile Picture (Avatar) Configuration -->
+      <div style="background:var(--input-dark); border:1px solid var(--border-subtle); border-radius:10px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">PROFILE PICTURE / AVATAR</label>
+          <span style="font-size:11px; color:var(--brand-green); font-weight:600;">Cross-Device Sync</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-normal); margin:4px 0 12px;">
+          Choose an avatar, upload a custom picture from your device, or paste any image URL.
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+          <label class="btn-primary" style="padding:8px 16px; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+            📁 Upload From Device
+            <input type="file" id="avatar-file-upload-input" accept="image/*" onchange="handleAvatarFileUpload(event)" style="display:none;">
+          </label>
+          <div style="flex:1; min-width:200px; display:flex; gap:6px;">
+            <input type="text" id="avatar-url-input" value="${escapeHtml(currentUser.photoURL || '')}" placeholder="Paste image URL (https://...)" oninput="updateAvatarFromUrl(this.value)" style="flex:1; padding:8px 10px; background:var(--surface-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px; font-size:12px;">
+            <button class="btn-secondary" style="padding:8px 12px; font-size:12px;" onclick="clearProfilePicture()">Reset</button>
+          </div>
+        </div>
+
+        <!-- One-Click Preset Avatars -->
+        <div>
+          <label style="font-size:10px; font-weight:bold; color:var(--text-muted); text-transform:uppercase;">OR SELECT A POPULAR AVATAR PRESET:</label>
+          <div class="avatar-preset-grid">
+            <button class="avatar-preset-btn ${currentUser.photoURL?.includes('Astronaut') ? 'active' : ''}" onclick="selectAvatarPreset('https://api.dicebear.com/7.x/bottts/svg?seed=Astronaut')" title="Cosmic Astronaut">
+              <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Astronaut" alt="Astronaut">
+            </button>
+            <button class="avatar-preset-btn ${currentUser.photoURL?.includes('CyberKitten') ? 'active' : ''}" onclick="selectAvatarPreset('https://api.dicebear.com/7.x/bottts/svg?seed=CyberKitten')" title="Cyber Kitten">
+              <img src="https://api.dicebear.com/7.x/bottts/svg?seed=CyberKitten" alt="Cyber Kitten">
+            </button>
+            <button class="avatar-preset-btn ${currentUser.photoURL?.includes('NeoHacker') ? 'active' : ''}" onclick="selectAvatarPreset('https://api.dicebear.com/7.x/bottts/svg?seed=NeoHacker')" title="Neo Hacker">
+              <img src="https://api.dicebear.com/7.x/bottts/svg?seed=NeoHacker" alt="Neo Hacker">
+            </button>
+            <button class="avatar-preset-btn ${currentUser.photoURL?.includes('SynthMystic') ? 'active' : ''}" onclick="selectAvatarPreset('https://api.dicebear.com/7.x/bottts/svg?seed=SynthMystic')" title="Synth Mystic">
+              <img src="https://api.dicebear.com/7.x/bottts/svg?seed=SynthMystic" alt="Synth Mystic">
+            </button>
+            <button class="avatar-preset-btn ${currentUser.photoURL?.includes('PixelGamer') ? 'active' : ''}" onclick="selectAvatarPreset('https://api.dicebear.com/7.x/bottts/svg?seed=PixelGamer')" title="Pixel Gamer">
+              <img src="https://api.dicebear.com/7.x/bottts/svg?seed=PixelGamer" alt="Pixel Gamer">
+            </button>
+            <button class="avatar-preset-btn ${currentUser.photoURL?.includes('MatrixMech') ? 'active' : ''}" onclick="selectAvatarPreset('https://api.dicebear.com/7.x/bottts/svg?seed=MatrixMech')" title="Matrix Mech">
+              <img src="https://api.dicebear.com/7.x/bottts/svg?seed=MatrixMech" alt="Matrix Mech">
+            </button>
+            <button class="avatar-preset-btn ${currentUser.photoURL?.includes('DragonMaster') ? 'active' : ''}" onclick="selectAvatarPreset('https://api.dicebear.com/7.x/bottts/svg?seed=DragonMaster')" title="Dragon Master">
+              <img src="https://api.dicebear.com/7.x/bottts/svg?seed=DragonMaster" alt="Dragon Master">
+            </button>
+            <button class="avatar-preset-btn ${currentUser.photoURL?.includes('CyberpunkHero') ? 'active' : ''}" onclick="selectAvatarPreset('https://api.dicebear.com/7.x/bottts/svg?seed=CyberpunkHero')" title="Cyberpunk Hero">
+              <img src="https://api.dicebear.com/7.x/bottts/svg?seed=CyberpunkHero" alt="Cyberpunk Hero">
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Display Name Input -->
       <div>
         <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">DISPLAY NAME</label>
@@ -1469,6 +1669,10 @@ function renderMyAccountTab() {
             <span class="theme-swatch" style="background:#130a24;"></span>
             <span>🔮 Cyber Synthwave</span>
           </div>
+          <div class="theme-chip ${currentTheme === 'custom-gradient' ? 'active' : ''}" data-theme="custom-gradient" onclick="selectTheme('custom-gradient', 'my-account')">
+            <span class="theme-swatch" style="background:${customGradient};"></span>
+            <span>🌈 Custom Gradient 💎</span>
+          </div>
         </div>
       </div>
 
@@ -1499,7 +1703,7 @@ function renderMyAccountTab() {
 function renderAppearanceTab() {
   return `
     <div class="settings-pane-title">Themes & Visual Customization</div>
-    <div class="settings-pane-desc">Personalize your client colors, typography, and contrast. All theme and appearance preferences are persisted to your browser via localStorage.</div>
+    <div class="settings-pane-desc">Personalize your client colors, dual hex gradients, typography, and contrast. All preferences are persisted to your browser via localStorage and synchronized with Firestore.</div>
 
     <div style="display:flex; flex-direction:column; gap:22px;">
       <!-- Theme Selection Grid -->
@@ -1528,8 +1732,96 @@ function renderAppearanceTab() {
           </div>
           <div class="theme-chip ${currentTheme === 'custom-gradient' ? 'active' : ''}" data-theme="custom-gradient" onclick="selectTheme('custom-gradient', 'appearance')">
             <span class="theme-swatch" style="background:${customGradient};"></span>
-            <span>🌈 Custom Gradient ${isNitroActive() ? '💎' : '🔒'}</span>
+            <span>🌈 Custom Gradient 💎</span>
           </div>
+        </div>
+      </div>
+
+      <!-- DUAL HEX COLOR GRADIENT BUILDER (TWO HEX COLOR STOPS) -->
+      <div style="background:var(--input-dark); padding:16px; border-radius:10px; border:1px solid var(--border-subtle); display:flex; flex-direction:column; gap:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:12px; font-weight:bold; color:var(--header-primary); display:flex; align-items:center; gap:6px;">
+            🌈 DUAL HEX COLOR GRADIENT BUILDER
+            <span class="nitro-lock-badge">Nitro Perk</span>
+          </div>
+          <span id="grad-angle-text" style="font-size:12px; font-family:monospace; color:var(--brand-blurple); font-weight:bold;">${gradientAngle}°</span>
+        </div>
+        <div style="font-size:11px; color:var(--text-muted);">
+          Pick your <strong>TWO hex colors</strong> below to generate a custom gradient across your chat, stage, and sidebars:
+        </div>
+
+        <!-- Two Hex Inputs side by side -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <!-- Hex Color 1 (Start) -->
+          <div>
+            <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">COLOR 1 (START HEX)</label>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+              <input type="color" id="grad-color-1" value="${gradientColor1}" oninput="updateDualHexGradientLive()" style="width:42px; height:36px; border:none; cursor:pointer; background:transparent;">
+              <input type="text" id="grad-hex-1" value="${gradientColor1}" placeholder="#18002e" oninput="syncDualHex(1)" maxlength="7" style="flex:1; padding:8px 10px; font-size:13px; font-family:monospace; background:var(--surface-dark); border:1px solid var(--border-subtle); color:white; border-radius:4px; font-weight:bold;">
+            </div>
+          </div>
+
+          <!-- Hex Color 2 (End) -->
+          <div>
+            <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">COLOR 2 (END HEX)</label>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+              <input type="color" id="grad-color-2" value="${gradientColor2}" oninput="updateDualHexGradientLive()" style="width:42px; height:36px; border:none; cursor:pointer; background:transparent;">
+              <input type="text" id="grad-hex-2" value="${gradientColor2}" placeholder="#ff007f" oninput="syncDualHex(2)" maxlength="7" style="flex:1; padding:8px 10px; font-size:13px; font-family:monospace; background:var(--surface-dark); border:1px solid var(--border-subtle); color:white; border-radius:4px; font-weight:bold;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Angle Slider -->
+        <div>
+          <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">GRADIENT ANGLE (0° – 360°)</label>
+          <input type="range" id="grad-angle-slider" min="0" max="360" value="${gradientAngle}" oninput="updateDualHexGradientLive()" style="width:100%; margin-top:6px;">
+        </div>
+
+        <!-- Live Preview Box -->
+        <div>
+          <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">LIVE DUAL-HEX GRADIENT PREVIEW</label>
+          <div id="dual-hex-live-preview" class="gradient-preview-box" style="background:${customGradient}; margin-top:4px;">
+            <div style="background:rgba(20,15,35,0.75); backdrop-filter:blur(8px); padding:10px 18px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); display:flex; align-items:center; gap:10px;">
+              <span>💬</span>
+              <span style="font-size:12px; font-weight:bold; color:white;">#general • Encrypted Stream Preview</span>
+              <button class="btn-primary" style="padding:2px 8px; font-size:10px;">Active</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick 2-Hex Presets -->
+        <div>
+          <label style="font-size:10px; font-weight:bold; color:var(--text-muted); text-transform:uppercase;">DUAL-HEX COLOR PRESETS:</label>
+          <div class="gradient-preset-grid" style="margin-top:6px;">
+            <div class="gradient-preset-card" style="background:linear-gradient(135deg, #0f0c29, #24243e);" onclick="applyPresetDualHex('Cosmic Purple', '#0f0c29', '#24243e', 135)">
+              Cosmic Purple
+            </div>
+            <div class="gradient-preset-card" style="background:linear-gradient(135deg, #18002e, #ff007f);" onclick="applyPresetDualHex('Cyberpunk Neon', '#18002e', '#ff007f', 135)">
+              Cyberpunk Neon
+            </div>
+            <div class="gradient-preset-card" style="background:linear-gradient(135deg, #0b192c, #008170);" onclick="applyPresetDualHex('Deep Ocean', '#0b192c', '#008170', 135)">
+              Deep Ocean
+            </div>
+            <div class="gradient-preset-card" style="background:linear-gradient(135deg, #2b1055, #ff6b6b);" onclick="applyPresetDualHex('Sunset Flare', '#2b1055', '#ff6b6b', 135)">
+              Sunset Flare
+            </div>
+            <div class="gradient-preset-card" style="background:linear-gradient(135deg, #051910, #10b981);" onclick="applyPresetDualHex('Emerald Matrix', '#051910', '#10b981', 135)">
+              Emerald Matrix
+            </div>
+            <div class="gradient-preset-card" style="background:linear-gradient(135deg, #2e0854, #ff1493);" onclick="applyPresetDualHex('Synthwave Sunset', '#2e0854', '#ff1493', 135)">
+              Synthwave Sunset
+            </div>
+          </div>
+        </div>
+
+        <!-- Apply Buttons -->
+        <div style="display:flex; gap:10px; margin-top:4px;">
+          <button class="btn-primary" style="flex:1; padding:10px; font-weight:bold;" onclick="saveDualHexGradientAction()">
+            💾 Save & Apply Dual Hex Gradient
+          </button>
+          <button class="btn-secondary" style="padding:10px 14px;" onclick="resetDualHexGradient()">
+            Reset
+          </button>
         </div>
       </div>
 
@@ -1545,7 +1837,7 @@ function renderAppearanceTab() {
           <div class="color-dot ${currentAccent.toLowerCase() === '#ed4245' ? 'active' : ''}" style="background:#ed4245;" onclick="selectAccent('#ed4245')" title="Coral Red"></div>
           <div style="display:flex; align-items:center; gap:6px; margin-left:10px;">
             <input type="color" value="${currentAccent}" onchange="selectAccent(this.value)" style="width:34px; height:34px; border:none; cursor:pointer; background:transparent;" title="Custom Color Picker">
-            <span style="font-size:11px; color:var(--text-muted);">Custom Hex</span>
+            <span style="font-size:11px; color:var(--text-muted);">Custom Accent Hex</span>
           </div>
         </div>
       </div>
@@ -1569,22 +1861,6 @@ function renderAppearanceTab() {
         </div>
         <input type="range" min="12" max="18" value="${currentFontSize}" oninput="updateFontSize(this.value)" style="width:100%; margin-top:8px;">
       </div>
-
-      <!-- Nitro Gradient Banner Link -->
-      <div style="background:linear-gradient(135deg, rgba(244,127,255,0.15), rgba(88,101,242,0.15)); border:1px solid rgba(244,127,255,0.3); border-radius:10px; padding:14px; display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <div style="font-size:13px; font-weight:bold; color:white; display:flex; align-items:center; gap:6px;">
-            🌈 Custom Gradient Studio
-            <span class="nitro-lock-badge">Nitro Only</span>
-          </div>
-          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
-            ${isNitroActive() ? 'Your custom glassmorphic gradient is active and syncing across devices.' : 'Unlock customizable linear/radial gradients by activating free Nitro with ads.'}
-          </div>
-        </div>
-        <button class="btn-primary" style="padding:6px 14px; font-size:12px; font-weight:bold; background:var(--nitro-pink);" onclick="switchSettingsTab('gradient')">
-          ${isNitroActive() ? 'Open Studio 🎨' : 'Unlock Nitro 💎'}
-        </button>
-      </div>
     </div>
   `;
 }
@@ -1593,40 +1869,19 @@ function renderAppearanceTab() {
 function renderGradientTab() {
   const nitroActive = isNitroActive();
 
-  if (!nitroActive) {
-    return `
-      <div class="settings-pane-title" style="display:flex; align-items:center; gap:8px;">
-        🌈 Custom Gradient Themes
-        <span class="nitro-lock-badge">💎 Nitro Exclusive</span>
-      </div>
-      <div class="settings-pane-desc">Design your own custom glassmorphic gradients to personalize your entire app interface across devices.</div>
-
-      <div style="background:linear-gradient(135deg, rgba(235,69,158,0.12), rgba(88,101,242,0.12)); border:2px dashed var(--nitro-pink); border-radius:12px; padding:30px 20px; text-align:center; margin-top:20px;">
-        <div style="font-size:42px; margin-bottom:12px;">💎🔒</div>
-        <h3 style="color:var(--header-primary); font-size:18px; margin-bottom:8px;">Unlock Custom Gradient Themes</h3>
-        <p style="color:var(--text-muted); font-size:13px; max-width:440px; margin:0 auto 20px; line-height:1.5;">
-          Custom gradient themes are exclusively reserved for Vortex Nitro members. Unlock full Vortex Nitro for <strong>100% free</strong> by watching a short sponsor ad!
-        </p>
-
-        <!-- Preview of sample gradient -->
-        <div class="gradient-preview-box" style="background:linear-gradient(135deg, #18002e, #4b0082, #ff007f); margin:0 auto 20px; max-width:380px;">
-          <div style="font-size:13px; font-weight:bold; color:white;">✨ Preview: Cyberpunk Neon Gradient</div>
-          <div style="font-size:11px; opacity:0.8; color:white;">Full Glassmorphic Chat & Panels</div>
-        </div>
-
-        <button class="btn-primary" style="background:linear-gradient(135deg, #f47fff, #eb459e); font-weight:bold; padding:12px 24px; font-size:14px; box-shadow:0 4px 16px rgba(235,69,158,0.4);" onclick="watchAdForReward('nitro')">
-          🚀 Watch Ad & Unlock Nitro Free (30 Days)
-        </button>
-      </div>
-    `;
-  }
-
   return `
     <div class="settings-pane-title" style="display:flex; align-items:center; gap:8px;">
-      🌈 Custom Gradient Themes
-      <span class="nitro-lock-badge">✓ Nitro Active</span>
+      🌈 Custom Gradient Studio
+      <span class="nitro-lock-badge">${nitroActive ? '✓ Nitro Active' : '💎 Nitro Perk'}</span>
     </div>
-    <div class="settings-pane-desc">Build and customize your own high-contrast linear and radial gradients. Your custom gradient synchronizes to your Google Account across all devices!</div>
+    <div class="settings-pane-desc">Build and customize your own high-contrast dual hex color linear gradients. Your gradient synchronizes to your Google Account across all devices!</div>
+
+    ${!nitroActive ? `
+      <div style="background:rgba(235,69,158,0.1); border:1px solid var(--nitro-pink); border-radius:8px; padding:12px 16px; margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; color:white;">Nitro is currently inactive. Unlock 30 days instantly to apply dual-hex themes:</span>
+        <button class="btn-primary" style="background:var(--nitro-pink); padding:6px 14px; font-size:11px; font-weight:bold;" onclick="unlockInstantNitro()">🚀 Activate Free Nitro (30 Days)</button>
+      </div>
+    ` : ''}
 
     <div style="display:flex; flex-direction:column; gap:20px; margin-top:16px;">
       <!-- Live Interactive Preview Box -->
@@ -1645,57 +1900,57 @@ function renderGradientTab() {
       <div>
         <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">ONE-CLICK PRESET GRADIENTS</label>
         <div class="gradient-preset-grid">
-          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #0f0c29, #302b63, #24243e);" onclick="applyPresetGradient('linear-gradient(135deg, #0f0c29, #302b63, #24243e)', '#0f0c29', '#24243e', 135)">
+          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #0f0c29, #24243e);" onclick="applyPresetDualHex('Cosmic Purple', '#0f0c29', '#24243e', 135)">
             Cosmic Purple
           </div>
-          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #18002e, #4b0082, #ff007f);" onclick="applyPresetGradient('linear-gradient(135deg, #18002e, #4b0082, #ff007f)', '#18002e', '#ff007f', 135)">
+          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #18002e, #ff007f);" onclick="applyPresetDualHex('Cyberpunk Neon', '#18002e', '#ff007f', 135)">
             Cyberpunk Neon
           </div>
-          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #0b192c, #1e3e62, #008170);" onclick="applyPresetGradient('linear-gradient(135deg, #0b192c, #1e3e62, #008170)', '#0b192c', '#008170', 135)">
+          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #0b192c, #008170);" onclick="applyPresetDualHex('Deep Ocean', '#0b192c', '#008170', 135)">
             Deep Ocean
           </div>
-          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #2b1055, #7597de, #ff6b6b);" onclick="applyPresetGradient('linear-gradient(135deg, #2b1055, #7597de, #ff6b6b)', '#2b1055', '#ff6b6b', 135)">
+          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #2b1055, #ff6b6b);" onclick="applyPresetDualHex('Sunset Flare', '#2b1055', '#ff6b6b', 135)">
             Sunset Flare
           </div>
-          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #051910, #134e4a, #10b981);" onclick="applyPresetGradient('linear-gradient(135deg, #051910, #134e4a, #10b981)', '#051910', '#10b981', 135)">
+          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #051910, #10b981);" onclick="applyPresetDualHex('Emerald Matrix', '#051910', '#10b981', 135)">
             Emerald Matrix
           </div>
-          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #2e0854, #8a2be2, #ff1493);" onclick="applyPresetGradient('linear-gradient(135deg, #2e0854, #8a2be2, #ff1493)', '#2e0854', '#ff1493', 135)">
+          <div class="gradient-preset-card" style="background:linear-gradient(135deg, #2e0854, #ff1493);" onclick="applyPresetDualHex('Synthwave Sunset', '#2e0854', '#ff1493', 135)">
             Synthwave Sunset
           </div>
         </div>
       </div>
 
-      <!-- Custom Angle & Color Controls -->
+      <!-- Custom Angle & Dual Hex Color Controls -->
       <div style="background:var(--input-dark); padding:16px; border-radius:10px; border:1px solid var(--border-subtle); display:flex; flex-direction:column; gap:14px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span style="font-size:12px; font-weight:bold; color:var(--header-primary);">Gradient Angle</span>
-          <span id="gradient-angle-label" style="font-size:12px; color:var(--text-muted); font-family:monospace;">135°</span>
+          <span id="grad-angle-text" style="font-size:12px; color:var(--text-muted); font-family:monospace;">${gradientAngle}°</span>
         </div>
-        <input type="range" id="gradient-angle-slider" min="0" max="360" value="135" oninput="updateCustomGradientStudio()" style="width:100%;">
+        <input type="range" id="grad-angle-slider" min="0" max="360" value="${gradientAngle}" oninput="updateDualHexGradientLive()" style="width:100%;">
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
           <div>
-            <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">START COLOR</label>
+            <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">COLOR 1 (START HEX)</label>
             <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
-              <input type="color" id="grad-color-start" value="#18002e" oninput="updateCustomGradientStudio()" style="width:42px; height:34px; border:none; cursor:pointer; background:transparent;">
-              <input type="text" id="grad-color-start-hex" value="#18002e" onchange="syncGradientHex(1)" style="flex:1; padding:6px 8px; font-size:12px; background:var(--surface-dark); border:1px solid var(--border-subtle); color:white; border-radius:4px; font-family:monospace;">
+              <input type="color" id="grad-color-1" value="${gradientColor1}" oninput="updateDualHexGradientLive()" style="width:42px; height:34px; border:none; cursor:pointer; background:transparent;">
+              <input type="text" id="grad-hex-1" value="${gradientColor1}" placeholder="#18002e" oninput="syncDualHex(1)" maxlength="7" style="flex:1; padding:6px 8px; font-size:12px; background:var(--surface-dark); border:1px solid var(--border-subtle); color:white; border-radius:4px; font-family:monospace; font-weight:bold;">
             </div>
           </div>
           <div>
-            <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">END COLOR</label>
+            <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">COLOR 2 (END HEX)</label>
             <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
-              <input type="color" id="grad-color-end" value="#ff007f" oninput="updateCustomGradientStudio()" style="width:42px; height:34px; border:none; cursor:pointer; background:transparent;">
-              <input type="text" id="grad-color-end-hex" value="#ff007f" onchange="syncGradientHex(2)" style="flex:1; padding:6px 8px; font-size:12px; background:var(--surface-dark); border:1px solid var(--border-subtle); color:white; border-radius:4px; font-family:monospace;">
+              <input type="color" id="grad-color-2" value="${gradientColor2}" oninput="updateDualHexGradientLive()" style="width:42px; height:34px; border:none; cursor:pointer; background:transparent;">
+              <input type="text" id="grad-hex-2" value="${gradientColor2}" placeholder="#ff007f" oninput="syncDualHex(2)" maxlength="7" style="flex:1; padding:6px 8px; font-size:12px; background:var(--surface-dark); border:1px solid var(--border-subtle); color:white; border-radius:4px; font-family:monospace; font-weight:bold;">
             </div>
           </div>
         </div>
 
         <div style="display:flex; gap:10px; margin-top:8px;">
-          <button class="btn-primary" style="flex:1; padding:10px; font-weight:bold;" onclick="saveAndApplyCustomGradient()">
-            ✨ Save & Apply Custom Gradient
+          <button class="btn-primary" style="flex:1; padding:10px; font-weight:bold;" onclick="saveDualHexGradientAction()">
+            ✨ Save & Apply Dual Hex Gradient
           </button>
-          <button class="btn-secondary" style="padding:10px 14px;" onclick="resetCustomGradient()">
+          <button class="btn-secondary" style="padding:10px 14px;" onclick="resetDualHexGradient()">
             Reset
           </button>
         </div>
@@ -1704,88 +1959,168 @@ function renderGradientTab() {
   `;
 }
 
-// Live Gradient Studio Handlers
-window.updateCustomGradientStudio = function() {
-  const angle = document.getElementById("gradient-angle-slider")?.value || "135";
-  const c1 = document.getElementById("grad-color-start")?.value || "#18002e";
-  const c2 = document.getElementById("grad-color-end")?.value || "#ff007f";
-
-  const label = document.getElementById("gradient-angle-label");
-  if (label) label.innerText = `${angle}°`;
-
-  const h1 = document.getElementById("grad-color-start-hex");
-  if (h1) h1.value = c1;
-  const h2 = document.getElementById("grad-color-end-hex");
-  if (h2) h2.value = c2;
-
-  const grad = `linear-gradient(${angle}deg, ${c1}, ${c2})`;
-  const preview = document.getElementById("gradient-live-preview-box");
-  if (preview) preview.style.background = grad;
+// Instant Nitro unlocker for testing
+window.unlockInstantNitro = function() {
+  nitroExpiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+  localStorage.setItem("vortex_nitro_expires", nitroExpiresAt);
+  switchSettingsTab("gradient");
+  alert("🎉 30 Days of Free Vortex Nitro activated! You can now use any custom dual-hex gradient.");
 };
 
-window.syncGradientHex = function(index) {
+// Live Dual Hex Gradient Handlers
+window.updateDualHexGradientLive = function() {
+  const p1 = document.getElementById("grad-color-1");
+  const p2 = document.getElementById("grad-color-2");
+  const s = document.getElementById("grad-angle-slider");
+
+  const c1 = p1 ? p1.value : gradientColor1;
+  const c2 = p2 ? p2.value : gradientColor2;
+  const angle = s ? s.value : gradientAngle;
+
+  gradientColor1 = c1;
+  gradientColor2 = c2;
+  gradientAngle = angle;
+  customGradient = `linear-gradient(${angle}deg, ${c1}, ${c2})`;
+
+  const angleLabel = document.getElementById("grad-angle-text");
+  if (angleLabel) angleLabel.innerText = `${angle}°`;
+
+  const h1 = document.getElementById("grad-hex-1");
+  if (h1 && h1.value.toLowerCase() !== c1.toLowerCase()) h1.value = c1;
+  const h2 = document.getElementById("grad-hex-2");
+  if (h2 && h2.value.toLowerCase() !== c2.toLowerCase()) h2.value = c2;
+
+  const preview = document.getElementById("dual-hex-live-preview");
+  if (preview) preview.style.background = customGradient;
+  const previewStudio = document.getElementById("gradient-live-preview-box");
+  if (previewStudio) previewStudio.style.background = customGradient;
+};
+
+window.syncDualHex = function(index) {
   if (index === 1) {
-    const hex = document.getElementById("grad-color-start-hex")?.value;
-    const picker = document.getElementById("grad-color-start");
-    if (picker && hex) picker.value = hex;
+    let val = document.getElementById("grad-hex-1")?.value.trim() || "#18002e";
+    if (!val.startsWith("#") && val.length === 6) val = "#" + val;
+    if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+      const picker = document.getElementById("grad-color-1");
+      if (picker) picker.value = val;
+      gradientColor1 = val;
+    }
   } else {
-    const hex = document.getElementById("grad-color-end-hex")?.value;
-    const picker = document.getElementById("grad-color-end");
-    if (picker && hex) picker.value = hex;
+    let val = document.getElementById("grad-hex-2")?.value.trim() || "#ff007f";
+    if (!val.startsWith("#") && val.length === 6) val = "#" + val;
+    if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+      const picker = document.getElementById("grad-color-2");
+      if (picker) picker.value = val;
+      gradientColor2 = val;
+    }
   }
-  window.updateCustomGradientStudio();
+  window.updateDualHexGradientLive();
 };
 
-window.applyPresetGradient = function(grad, c1, c2, angle) {
-  customGradient = grad;
-  const s = document.getElementById("grad-color-start");
-  if (s) s.value = c1;
-  const e = document.getElementById("grad-color-end");
-  if (e) e.value = c2;
-  const a = document.getElementById("gradient-angle-slider");
-  if (a) a.value = angle;
-  const preview = document.getElementById("gradient-live-preview-box");
-  if (preview) preview.style.background = grad;
-  window.saveAndApplyCustomGradient(grad);
-};
-
-window.saveAndApplyCustomGradient = async function(explicitGrad = null) {
-  if (!isNitroActive()) {
-    alert("🔒 Custom Gradient Themes are a Nitro Exclusive perk! Watch a quick ad to unlock.");
-    window.watchAdForReward('nitro');
-    return;
-  }
-
-  const angle = document.getElementById("gradient-angle-slider")?.value || "135";
-  const c1 = document.getElementById("grad-color-start")?.value || "#18002e";
-  const c2 = document.getElementById("grad-color-end")?.value || "#ff007f";
-  customGradient = explicitGrad || `linear-gradient(${angle}deg, ${c1}, ${c2})`;
+window.saveDualHexGradientAction = async function() {
+  window.updateDualHexGradientLive();
   currentTheme = "custom-gradient";
-
   applyAppearance();
-  localStorage.setItem("vortex_custom_gradient", customGradient);
-  localStorage.setItem("vortex_theme", "custom-gradient");
 
-  // Sync to Firestore user doc
   if (!currentUser.isGuest) {
     try {
-      await updateDoc(doc(db, "users", currentUser.uid), {
+      const uRef = doc(db, "users", currentUser.uid);
+      await setDoc(uRef, {
+        gradColor1: gradientColor1,
+        gradColor2: gradientColor2,
+        gradAngle: gradientAngle,
         customGradient: customGradient,
-        theme: "custom-gradient"
-      });
+        theme: "custom-gradient",
+        updatedAt: serverTimestamp()
+      }, { merge: true });
     } catch (e) {
-      console.warn("Firestore gradient sync:", e);
+      console.warn("Firestore gradient save notice:", e);
     }
   }
 
-  alert("✨ Custom Gradient Theme applied and synced across all your devices!");
+  alert("🌈 Custom dual-hex gradient saved and applied across your Vortex interface!");
 };
 
-window.resetCustomGradient = function() {
-  customGradient = "linear-gradient(135deg, #18002e, #4b0082, #ff007f)";
-  const preview = document.getElementById("gradient-live-preview-box");
-  if (preview) preview.style.background = customGradient;
-  window.saveAndApplyCustomGradient(customGradient);
+window.resetDualHexGradient = function() {
+  gradientColor1 = "#18002e";
+  gradientColor2 = "#ff007f";
+  gradientAngle = "135";
+  customGradient = `linear-gradient(${gradientAngle}deg, ${gradientColor1}, ${gradientColor2})`;
+  const p1 = document.getElementById("grad-color-1");
+  const p2 = document.getElementById("grad-color-2");
+  const h1 = document.getElementById("grad-hex-1");
+  const h2 = document.getElementById("grad-hex-2");
+  const s = document.getElementById("grad-angle-slider");
+  if (p1) p1.value = gradientColor1;
+  if (p2) p2.value = gradientColor2;
+  if (h1) h1.value = gradientColor1;
+  if (h2) h2.value = gradientColor2;
+  if (s) s.value = gradientAngle;
+  window.updateDualHexGradientLive();
+};
+
+window.applyPresetDualHex = function(name, c1, c2, angle = 135) {
+  gradientColor1 = c1;
+  gradientColor2 = c2;
+  gradientAngle = String(angle);
+  customGradient = `linear-gradient(${angle}deg, ${c1}, ${c2})`;
+
+  const p1 = document.getElementById("grad-color-1");
+  const p2 = document.getElementById("grad-color-2");
+  const h1 = document.getElementById("grad-hex-1");
+  const h2 = document.getElementById("grad-hex-2");
+  const s = document.getElementById("grad-angle-slider");
+  if (p1) p1.value = gradientColor1;
+  if (p2) p2.value = gradientColor2;
+  if (h1) h1.value = gradientColor1;
+  if (h2) h2.value = gradientColor2;
+  if (s) s.value = gradientAngle;
+
+  window.updateDualHexGradientLive();
+  window.saveDualHexGradientAction();
+};
+
+// Avatar & Profile Picture Handlers
+window.handleAvatarFileUpload = function(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    alert("Please select a valid image file (PNG, JPG, WebP, GIF).");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const dataUrl = e.target.result;
+    currentUser.photoURL = dataUrl;
+    const urlInput = document.getElementById("avatar-url-input");
+    if (urlInput) urlInput.value = dataUrl;
+    window.updateProfileLivePreview();
+  };
+  reader.readAsDataURL(file);
+};
+
+window.updateAvatarFromUrl = function(url) {
+  currentUser.photoURL = url.trim();
+  window.updateProfileLivePreview();
+};
+
+window.selectAvatarPreset = function(presetUrl) {
+  currentUser.photoURL = presetUrl;
+  const urlInput = document.getElementById("avatar-url-input");
+  if (urlInput) urlInput.value = presetUrl;
+  window.updateProfileLivePreview();
+  document.querySelectorAll(".avatar-preset-btn").forEach(btn => {
+    const img = btn.querySelector("img");
+    btn.classList.toggle("active", img && img.src === presetUrl);
+  });
+};
+
+window.clearProfilePicture = function() {
+  currentUser.photoURL = "";
+  const urlInput = document.getElementById("avatar-url-input");
+  if (urlInput) urlInput.value = "";
+  window.updateProfileLivePreview();
+  document.querySelectorAll(".avatar-preset-btn").forEach(btn => btn.classList.remove("active"));
 };
 
 // Live Profile Preview in Settings Modal
@@ -1797,7 +2132,7 @@ window.updateProfileLivePreview = function() {
 
   const previewName = document.getElementById("preview-display-name");
   const previewHandle = document.getElementById("preview-handle");
-  const previewAvatar = document.getElementById("preview-avatar-letter");
+  const previewAvatarContainer = document.getElementById("preview-avatar-container");
   const previewBanner = document.getElementById("preview-banner");
 
   const name = nameInput ? (nameInput.value.trim() || "Vortex User") : currentUser.displayName;
@@ -1807,12 +2142,19 @@ window.updateProfileLivePreview = function() {
   const banner = bannerInput ? bannerInput.value : currentUser.bannerColor;
 
   if (previewName) previewName.innerText = name;
-  if (previewAvatar) previewAvatar.innerText = (name[0] || "U").toUpperCase();
   if (previewHandle) {
     const handleStr = username ? `@${username}` : "";
     previewHandle.innerText = handleStr ? `${handleStr} • ${tag}` : tag;
   }
   if (previewBanner) previewBanner.style.background = banner;
+
+  if (previewAvatarContainer) {
+    if (currentUser.photoURL) {
+      previewAvatarContainer.innerHTML = `<img id="preview-avatar-img" class="avatar-preview-img" src="${escapeHtml(currentUser.photoURL)}" alt="Avatar">`;
+    } else {
+      previewAvatarContainer.innerHTML = `<div id="preview-avatar-letter" style="width:72px; height:72px; border-radius:50%; background:var(--brand-blurple); border:4px solid var(--surface-dark); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; color:white;">${(name[0] || "U").toUpperCase()}</div>`;
+    }
+  }
 };
 
 // Quick preset tag click handler
@@ -1824,7 +2166,7 @@ window.setPresetTag = function(tag) {
   }
 };
 
-// Robust Settings & Profile Saver (persisted via localStorage)
+// Robust Settings & Profile Saver (persisted via localStorage and Firestore)
 window.saveSettingsPreferences = async function() {
   const nameInput = document.getElementById("edit-display-name");
   const tagInput = document.getElementById("edit-tag");
@@ -1856,12 +2198,17 @@ window.saveSettingsPreferences = async function() {
   localStorage.setItem("vortex_username", currentUser.username);
   localStorage.setItem("vortex_bio", currentUser.bio);
   localStorage.setItem("vortex_banner_color", currentUser.bannerColor);
+  localStorage.setItem("vortex_photo_url", currentUser.photoURL || "");
   localStorage.setItem("vortex_theme", currentTheme);
   localStorage.setItem("vortex_appearance", JSON.stringify({
     theme: currentTheme,
     accent: currentAccent,
     font: currentFont,
-    fontSize: currentFontSize
+    fontSize: currentFontSize,
+    gradColor1: gradientColor1,
+    gradColor2: gradientColor2,
+    gradAngle: gradientAngle,
+    customGradient: customGradient
   }));
 
   // Update live application UI instantly
@@ -1880,7 +2227,12 @@ window.saveSettingsPreferences = async function() {
         customTag: currentUser.tag,
         bio: currentUser.bio,
         bannerColor: currentUser.bannerColor,
+        photoURL: currentUser.photoURL || "",
         theme: currentTheme,
+        gradColor1: gradientColor1,
+        gradColor2: gradientColor2,
+        gradAngle: gradientAngle,
+        customGradient: customGradient,
         updatedAt: serverTimestamp()
       }, { merge: true });
     } catch (e) {
@@ -1892,7 +2244,7 @@ window.saveSettingsPreferences = async function() {
   const toast = document.getElementById("settings-save-toast");
   if (toast) {
     toast.style.display = "flex";
-    toast.innerHTML = "✓ Preferences saved to localStorage! Display name, custom tag & theme updated.";
+    toast.innerHTML = "✓ Preferences saved! Profile picture, display name, tag & dual hex gradient updated.";
     setTimeout(() => {
       if (toast) toast.style.display = "none";
     }, 4000);
@@ -1904,6 +2256,24 @@ window.saveFullProfile = window.saveSettingsPreferences;
 // Reset Settings Preferences to Factory Defaults
 window.resetSettingsToDefaults = function() {
   currentUser.displayName = "Vortex User";
+  currentUser.username = "vortex_user";
+  currentUser.tag = "#1337";
+  currentUser.bio = "Exploring the decentralized metaverse with Vortex.";
+  currentUser.bannerColor = "#5865f2";
+  currentUser.photoURL = "";
+  currentTheme = "dark";
+  currentAccent = "#5865f2";
+  currentFont = "sans";
+  currentFontSize = "14";
+
+  localStorage.setItem("vortex_display_name", currentUser.displayName);
+  localStorage.setItem("vortex_username", currentUser.username);
+  localStorage.setItem("vortex_tag", currentUser.tag);
+  localStorage.setItem("vortex_bio", currentUser.bio);
+  localStorage.setItem("vortex_banner_color", currentUser.bannerColor);
+  localStorage.setItem("vortex_photo_url", "");
+  localStorage.setItem("vortex_theme", currentTheme);
+  localStorage.setItem("vortex_accent", currentAccent);
   currentUser.username = "vortex_user";
   currentUser.tag = "#1337";
   currentUser.bio = "Exploring the decentralized metaverse with Vortex.";
@@ -2396,8 +2766,47 @@ window.createServerAction = async function() {
 
 window.openServerSettings = function(initialTab = "overview") {
   if (!currentServer) {
-    window.openAddServerModal();
-    return;
+    if (userServers && userServers.length > 0) {
+      currentServer = userServers[0];
+      selectServer(currentServer);
+    } else {
+      // Create a default server if none exists so user can immediately use server settings!
+      const defaultServer = {
+        id: "srv_" + Math.random().toString(36).substring(2, 8),
+        name: "General Community",
+        emoji: "🎮",
+        description: "Official community server for text chat, voice stages, and moderation.",
+        ownerId: currentUser.uid,
+        boostLevel: 3,
+        inviteCode: "VTX-7742",
+        memberIds: [currentUser.uid],
+        members: [{
+          uid: currentUser.uid,
+          displayName: currentUser.displayName,
+          username: currentUser.username,
+          tag: currentUser.tag,
+          roleIds: ["owner"]
+        }],
+        roles: getDefaultRoles(),
+        bannedUserIds: [],
+        mutedUserIds: [],
+        safetySettings: {
+          verificationLevel: "low",
+          filterVulgarity: true,
+          blockInviteLinks: true,
+          antiPhishing: true,
+          mentionSpamLimit: 5
+        },
+        auditLogs: [
+          { action: "Server Created", user: currentUser.displayName, time: "Just now" },
+          { action: "Roles Initialized (Owner, Admin, Mod, VIP)", user: "System", time: "Just now" }
+        ]
+      };
+      userServers.push(defaultServer);
+      localStorage.setItem("vortex_servers", JSON.stringify(userServers));
+      currentServer = defaultServer;
+      selectServer(defaultServer);
+    }
   }
 
   const isOwner = currentServer.ownerId === currentUser.uid;
@@ -2416,6 +2825,7 @@ window.openServerSettings = function(initialTab = "overview") {
         <div class="settings-section-title">SERVER MANAGEMENT</div>
         <button class="settings-tab-btn ${initialTab === 'overview' ? 'active' : ''}" onclick="switchServerSettingsTab('overview')">⚙️ Overview</button>
         <button class="settings-tab-btn ${initialTab === 'roles' ? 'active' : ''}" onclick="switchServerSettingsTab('roles')">🛡️ Roles & Permissions</button>
+        <button class="settings-tab-btn ${initialTab === 'safety' ? 'active' : ''}" onclick="switchServerSettingsTab('safety')">🛡️ Safety & AutoMod</button>
         <button class="settings-tab-btn ${initialTab === 'members' ? 'active' : ''}" onclick="switchServerSettingsTab('members')">👥 Members & Moderation</button>
         <button class="settings-tab-btn ${initialTab === 'bans' ? 'active' : ''}" onclick="switchServerSettingsTab('bans')">🚫 Banned Users</button>
         <button class="settings-tab-btn ${initialTab === 'channels' ? 'active' : ''}" onclick="switchServerSettingsTab('channels')">💬 Channel Manager</button>
@@ -2455,6 +2865,9 @@ window.switchServerSettingsTab = function(tabName) {
       break;
     case "roles":
       pane.innerHTML = renderServerRolesTab();
+      break;
+    case "safety":
+      pane.innerHTML = renderServerSafetyTab();
       break;
     case "members":
       pane.innerHTML = renderServerMembersTab();
@@ -2813,6 +3226,163 @@ window.deleteRoleAction = async function(roleId) {
   }
 };
 
+// ============================================================================
+// Moderation & Safety Tab (AutoMod, Verification Levels, Audit Log)
+// ============================================================================
+
+window.addServerAuditLog = function(action) {
+  if (!currentServer) return;
+  currentServer.auditLogs = currentServer.auditLogs || [];
+  currentServer.auditLogs.unshift({
+    action: action,
+    user: currentUser.displayName,
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  });
+  if (currentServer.auditLogs.length > 25) currentServer.auditLogs.pop();
+  localStorage.setItem("vortex_servers", JSON.stringify(userServers));
+};
+
+window.setVerificationLevel = function(level) {
+  if (!currentServer) return;
+  currentServer.safetySettings = currentServer.safetySettings || {};
+  currentServer.safetySettings.verificationLevel = level;
+  localStorage.setItem("vortex_servers", JSON.stringify(userServers));
+  addServerAuditLog(`Updated verification level to: ${level.toUpperCase()}`);
+  switchServerSettingsTab("safety");
+};
+
+window.toggleAutoModSetting = function(settingKey) {
+  if (!currentServer) return;
+  currentServer.safetySettings = currentServer.safetySettings || {
+    verificationLevel: "low",
+    filterVulgarity: true,
+    blockInviteLinks: true,
+    antiPhishing: true,
+    mentionSpamLimit: 5
+  };
+  currentServer.safetySettings[settingKey] = !currentServer.safetySettings[settingKey];
+  localStorage.setItem("vortex_servers", JSON.stringify(userServers));
+  addServerAuditLog(`Toggled AutoMod rule: ${settingKey} -> ${currentServer.safetySettings[settingKey] ? 'ENABLED' : 'DISABLED'}`);
+  switchServerSettingsTab("safety");
+};
+
+function renderServerSafetyTab() {
+  const safety = currentServer.safetySettings || {
+    verificationLevel: "low",
+    filterVulgarity: true,
+    blockInviteLinks: true,
+    antiPhishing: true,
+    mentionSpamLimit: 5
+  };
+  const auditLogs = currentServer.auditLogs || [
+    { action: "Server Initialized", user: currentUser.displayName, time: "Just now" }
+  ];
+
+  return `
+    <div class="settings-pane-title">🛡️ Server Safety & AutoMod Moderation</div>
+    <div class="settings-pane-desc">Automated rules, member security verification levels, and live moderation event audit logging.</div>
+
+    <div style="display:flex; flex-direction:column; gap:18px; margin-top:16px;">
+      
+      <!-- Verification Level -->
+      <div style="background:var(--input-dark); border:1px solid var(--border-subtle); border-radius:10px; padding:16px;">
+        <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">COMMUNITY VERIFICATION LEVEL</label>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-top:8px;">
+          <div class="safety-verify-card ${safety.verificationLevel === 'none' ? 'active' : ''}" onclick="setVerificationLevel('none')" style="padding:10px; border-radius:8px; cursor:pointer; background:var(--surface-dark); border:1px solid ${safety.verificationLevel === 'none' ? 'var(--brand-blurple)' : 'var(--border-subtle)'};">
+            <div style="font-size:13px; font-weight:bold; color:var(--header-primary);">None</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Unrestricted chatting</div>
+          </div>
+          <div class="safety-verify-card ${safety.verificationLevel === 'low' ? 'active' : ''}" onclick="setVerificationLevel('low')" style="padding:10px; border-radius:8px; cursor:pointer; background:var(--surface-dark); border:1px solid ${safety.verificationLevel === 'low' ? 'var(--brand-green)' : 'var(--border-subtle)'};">
+            <div style="font-size:13px; font-weight:bold; color:var(--brand-green);">Low</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Google email verified</div>
+          </div>
+          <div class="safety-verify-card ${safety.verificationLevel === 'medium' ? 'active' : ''}" onclick="setVerificationLevel('medium')" style="padding:10px; border-radius:8px; cursor:pointer; background:var(--surface-dark); border:1px solid ${safety.verificationLevel === 'medium' ? 'var(--brand-blurple)' : 'var(--border-subtle)'};">
+            <div style="font-size:13px; font-weight:bold; color:var(--brand-blurple);">Medium</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Account age &gt; 5 mins</div>
+          </div>
+          <div class="safety-verify-card ${safety.verificationLevel === 'high' ? 'active' : ''}" onclick="setVerificationLevel('high')" style="padding:10px; border-radius:8px; cursor:pointer; background:var(--surface-dark); border:1px solid ${safety.verificationLevel === 'high' ? 'var(--danger-red)' : 'var(--border-subtle)'};">
+            <div style="font-size:13px; font-weight:bold; color:var(--danger-red);">Highest</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">2FA &amp; Phone Verified</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AutoMod Toggles -->
+      <div style="background:var(--input-dark); border:1px solid var(--border-subtle); border-radius:10px; padding:16px;">
+        <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">AUTOMOD RULES</label>
+        <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+          <label style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+            <div>
+              <div style="font-size:13px; font-weight:600; color:var(--header-primary);">🛡️ Filter Profanity &amp; Vulgarity</div>
+              <div style="font-size:11px; color:var(--text-muted);">Automatically blocks offensive language and hate speech in channels</div>
+            </div>
+            <input type="checkbox" ${safety.filterVulgarity ? 'checked' : ''} onchange="toggleAutoModSetting('filterVulgarity')">
+          </label>
+
+          <label style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding-top:8px; border-top:1px solid var(--border-subtle);">
+            <div>
+              <div style="font-size:13px; font-weight:600; color:var(--header-primary);">🔗 Block Unauthorized External Invites</div>
+              <div style="font-size:11px; color:var(--text-muted);">Prevents discord.gg, vortex invites, and link poaching</div>
+            </div>
+            <input type="checkbox" ${safety.blockInviteLinks ? 'checked' : ''} onchange="toggleAutoModSetting('blockInviteLinks')">
+          </label>
+
+          <label style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding-top:8px; border-top:1px solid var(--border-subtle);">
+            <div>
+              <div style="font-size:13px; font-weight:600; color:var(--header-primary);">🚫 Anti-Phishing &amp; Malicious Links Shield</div>
+              <div style="font-size:11px; color:var(--text-muted);">Scans URLs against known phishing databases before rendering</div>
+            </div>
+            <input type="checkbox" ${safety.antiPhishing ? 'checked' : ''} onchange="toggleAutoModSetting('antiPhishing')">
+          </label>
+        </div>
+      </div>
+
+      <!-- Moderation Audit Log -->
+      <div style="background:var(--input-dark); border:1px solid var(--border-subtle); border-radius:10px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">SERVER MODERATION AUDIT LOG</label>
+          <span style="font-size:10px; color:var(--brand-green); font-weight:600;">Live Feed</span>
+        </div>
+        <div style="max-height:180px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+          ${auditLogs.map(log => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:var(--surface-dark); border-radius:6px; font-size:12px; border:1px solid var(--border-subtle);">
+              <div>
+                <span style="font-weight:600; color:var(--header-primary);">${escapeHtml(log.action)}</span>
+                <span style="color:var(--text-muted); margin-left:6px;">by ${escapeHtml(log.user || 'Admin')}</span>
+              </div>
+              <span style="color:var(--text-muted); font-size:10px; font-family:monospace;">${escapeHtml(log.time || 'Today')}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+// Sample Member Spawner for immediate moderation testing
+window.addSampleMember = function() {
+  if (!currentServer) return;
+  currentServer.members = currentServer.members || [];
+  const sampleUid = "sample_" + Date.now().toString(36);
+  const sampleMember = {
+    uid: sampleUid,
+    displayName: "Test Member",
+    username: "test_member",
+    tag: "#0042",
+    roleIds: ["member"]
+  };
+  currentServer.members.push(sampleMember);
+  currentServer.memberIds = currentServer.memberIds || [];
+  if (!currentServer.memberIds.includes(sampleUid)) {
+    currentServer.memberIds.push(sampleUid);
+  }
+  localStorage.setItem("vortex_servers", JSON.stringify(userServers));
+  addServerAuditLog("Added sample member Test Member for moderation testing");
+  renderMemberList();
+  switchServerSettingsTab("members");
+};
+
 function renderServerMembersTab() {
   const members = currentServer.members || [];
   const rolesMap = {};
@@ -2826,6 +3396,7 @@ function renderServerMembersTab() {
     const isMuted = currentServer.mutedUserIds && currentServer.mutedUserIds.includes(m.uid);
     const assignedRoles = (m.roleIds || []).map(rid => rolesMap[rid]).filter(Boolean);
     const topRole = assignedRoles[0] || (isOwner ? { name: "Owner", color: "#f1c40f" } : { name: "Member", color: "#95a5a6" });
+    const isSample = m.uid.startsWith("sample_");
 
     return `
       <div class="member-mod-row">
@@ -2837,6 +3408,7 @@ function renderServerMembersTab() {
             <div style="font-size:13px; font-weight:bold; color:var(--header-primary); display:flex; align-items:center; gap:6px;">
               ${escapeHtml(m.displayName)}
               ${isOwner ? '👑' : ''}
+              ${isSample ? '<span style="font-size:9px; background:rgba(88,101,242,0.2); color:var(--brand-blurple); padding:1px 5px; border-radius:3px; border:1px solid rgba(88,101,242,0.4);">🧪 TEST MEMBER</span>' : ''}
               ${isMuted ? '<span style="font-size:9px; background:var(--danger-red); color:white; padding:1px 4px; border-radius:3px;">MUTED</span>' : ''}
             </div>
             <div style="font-size:11px; color:var(--text-muted);">
@@ -2853,7 +3425,7 @@ function renderServerMembersTab() {
           <button class="mod-action-btn warning" onclick="timeoutMemberAction('${m.uid}', ${isMuted ? '0' : '300'})">
             ${isMuted ? '🔊 Unmute' : '⏳ Timeout'}
           </button>
-          ${!isOwner && !isYou ? `
+          ${(!isOwner && !isYou) || isSample ? `
             <button class="mod-action-btn danger" onclick="kickMemberAction('${m.uid}')">👢 Kick</button>
             <button class="mod-action-btn danger" onclick="banMemberAction('${m.uid}')">🔨 Ban</button>
           ` : ''}
@@ -2863,8 +3435,13 @@ function renderServerMembersTab() {
   }).join("");
 
   return `
-    <div class="settings-pane-title">Members & Moderation Actions</div>
-    <div class="settings-pane-desc">Manage all real members of ${escapeHtml(currentServer.name)}. Assign custom roles, timeout, kick, or ban offending accounts.</div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div>
+        <div class="settings-pane-title" style="margin-bottom:2px;">Members &amp; Moderation Actions</div>
+        <div class="settings-pane-desc">Manage real members of ${escapeHtml(currentServer.name)}. Assign custom roles, timeout, kick, or ban accounts.</div>
+      </div>
+      <button class="btn-primary" style="padding:8px 14px; font-size:11px; white-space:nowrap;" onclick="addSampleMember()">🧪 Add Test Member to Test Mod</button>
+    </div>
 
     <div style="margin-top:16px;">
       ${memberRowsHtml}
@@ -2917,8 +3494,10 @@ window.toggleMemberRole = async function(memberUid, roleId) {
   member.roleIds = member.roleIds || [];
   if (member.roleIds.includes(roleId)) {
     member.roleIds = member.roleIds.filter(id => id !== roleId);
+    addServerAuditLog(`Removed role ${roleId} from ${member.displayName}`);
   } else {
     member.roleIds.push(roleId);
+    addServerAuditLog(`Assigned role ${roleId} to ${member.displayName}`);
   }
 
   localStorage.setItem("vortex_servers", JSON.stringify(userServers));
@@ -2935,10 +3514,13 @@ window.toggleMemberRole = async function(memberUid, roleId) {
 // Moderation: Kick Member
 window.kickMemberAction = async function(memberUid) {
   if (!currentServer) return;
-  if (!confirm("Are you sure you want to kick this member from the server?")) return;
+  const targetMember = (currentServer.members || []).find(m => m.uid === memberUid);
+  const targetName = targetMember ? targetMember.displayName : memberUid;
+  if (!confirm(`Are you sure you want to kick ${targetName} from the server?`)) return;
 
   currentServer.memberIds = (currentServer.memberIds || []).filter(id => id !== memberUid);
   currentServer.members = (currentServer.members || []).filter(m => m.uid !== memberUid);
+  addServerAuditLog(`Kicked member: ${targetName}`);
   localStorage.setItem("vortex_servers", JSON.stringify(userServers));
   renderMemberList();
 
@@ -2953,7 +3535,7 @@ window.kickMemberAction = async function(memberUid) {
     console.warn("Firestore kick notice:", e);
   }
 
-  alert("👢 Member kicked from server.");
+  alert(`👢 ${targetName} kicked from server.`);
   closeModal();
   openServerSettings("members");
 };
@@ -2961,7 +3543,9 @@ window.kickMemberAction = async function(memberUid) {
 // Moderation: Ban Member
 window.banMemberAction = async function(memberUid) {
   if (!currentServer) return;
-  if (!confirm("Are you sure you want to BAN this member? They will not be able to rejoin with an invite code.")) return;
+  const targetMember = (currentServer.members || []).find(m => m.uid === memberUid);
+  const targetName = targetMember ? targetMember.displayName : memberUid;
+  if (!confirm(`Are you sure you want to BAN ${targetName}? They will not be able to rejoin with an invite code.`)) return;
 
   currentServer.bannedUserIds = currentServer.bannedUserIds || [];
   if (!currentServer.bannedUserIds.includes(memberUid)) {
@@ -2969,6 +3553,7 @@ window.banMemberAction = async function(memberUid) {
   }
   currentServer.memberIds = (currentServer.memberIds || []).filter(id => id !== memberUid);
   currentServer.members = (currentServer.members || []).filter(m => m.uid !== memberUid);
+  addServerAuditLog(`Permanently banned member: ${targetName}`);
   localStorage.setItem("vortex_servers", JSON.stringify(userServers));
   renderMemberList();
 
@@ -2984,7 +3569,7 @@ window.banMemberAction = async function(memberUid) {
     console.warn("Firestore ban notice:", e);
   }
 
-  alert("🔨 Member has been banned from the server.");
+  alert(`🔨 ${targetName} has been banned from the server.`);
   closeModal();
   openServerSettings("members");
 };
@@ -2992,16 +3577,20 @@ window.banMemberAction = async function(memberUid) {
 // Moderation: Timeout / Mute Member
 window.timeoutMemberAction = async function(memberUid, durationSeconds = 300) {
   if (!currentServer) return;
+  const targetMember = (currentServer.members || []).find(m => m.uid === memberUid);
+  const targetName = targetMember ? targetMember.displayName : memberUid;
   currentServer.mutedUserIds = currentServer.mutedUserIds || [];
 
   if (durationSeconds > 0) {
     if (!currentServer.mutedUserIds.includes(memberUid)) {
       currentServer.mutedUserIds.push(memberUid);
     }
-    alert(`⏳ Member has been timed out for ${Math.round(durationSeconds / 60)} minutes.`);
+    addServerAuditLog(`Timed out member ${targetName} for ${Math.round(durationSeconds / 60)}m`);
+    alert(`⏳ ${targetName} has been timed out for ${Math.round(durationSeconds / 60)} minutes.`);
   } else {
     currentServer.mutedUserIds = currentServer.mutedUserIds.filter(id => id !== memberUid);
-    alert("🔊 Timeout removed. Member can now chat freely.");
+    addServerAuditLog(`Removed timeout for member ${targetName}`);
+    alert(`🔊 Timeout removed for ${targetName}. Member can now chat freely.`);
   }
 
   localStorage.setItem("vortex_servers", JSON.stringify(userServers));
@@ -3025,6 +3614,7 @@ window.timeoutMemberAction = async function(memberUid, durationSeconds = 300) {
 window.unbanUserAction = async function(memberUid) {
   if (!currentServer) return;
   currentServer.bannedUserIds = (currentServer.bannedUserIds || []).filter(id => id !== memberUid);
+  addServerAuditLog(`Unbanned user UID: ${memberUid}`);
   localStorage.setItem("vortex_servers", JSON.stringify(userServers));
 
   try {

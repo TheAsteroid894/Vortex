@@ -66,6 +66,51 @@ body.theme-synthwave {
   --header-primary: #ff7be5;
 }
 
+/* Theme: Custom Gradient (Nitro Exclusive) */
+body.theme-custom-gradient {
+  background: var(--gradient-custom, linear-gradient(135deg, #18002e, #4b0082, #ff007f)) !important;
+  background-attachment: fixed !important;
+  background-size: cover !important;
+}
+body.theme-custom-gradient .server-rail {
+  background: rgba(15, 10, 30, 0.78) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+body.theme-custom-gradient .channels-sidebar {
+  background: rgba(24, 16, 44, 0.72) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+body.theme-custom-gradient .chat-area {
+  background: rgba(18, 12, 36, 0.62) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+body.theme-custom-gradient .chat-header {
+  background: rgba(24, 16, 44, 0.72) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+body.theme-custom-gradient .members-sidebar {
+  background: rgba(24, 16, 44, 0.72) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+body.theme-custom-gradient .user-panel {
+  background: rgba(15, 10, 30, 0.88) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+body.theme-custom-gradient .input-wrapper {
+  background: rgba(30, 20, 58, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
 /* Font Families */
 body.font-sans {
   --app-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -1196,3 +1241,407 @@ body {
     transform: translateX(320px);
   }
 }
+
+/* --- Role Badges & Tags --- */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
+}
+
+.role-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* --- Role Presets & Swatches --- */
+.preset-chips-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.preset-chip {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--input-dark);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preset-chip:hover {
+  background: var(--surface-dark);
+  color: var(--header-primary);
+  border-color: var(--text-muted);
+}
+
+.preset-chip.active {
+  border-color: var(--brand-blurple);
+  background: rgba(88, 101, 242, 0.18);
+  color: #ffffff;
+}
+
+/* --- Permission Row & Switches --- */
+.perm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--input-dark);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-subtle);
+}
+
+.perm-row:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.perm-info h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--header-primary);
+  margin-bottom: 2px;
+}
+
+.perm-info p {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Toggle Switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #4e5058;
+  transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 22px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--brand-green);
+}
+
+input:checked + .slider:before {
+  transform: translateX(16px);
+}
+
+/* --- Member Moderation Row --- */
+.member-mod-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--input-dark);
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 8px;
+  gap: 12px;
+}
+
+.member-mod-row:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.mod-action-btn {
+  padding: 5px 9px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-normal);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mod-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--header-primary);
+}
+
+.mod-action-btn.danger {
+  color: var(--danger-red);
+  border-color: rgba(237, 66, 69, 0.4);
+}
+
+.mod-action-btn.danger:hover {
+  background: rgba(237, 66, 69, 0.18);
+  border-color: var(--danger-red);
+}
+
+.mod-action-btn.warning {
+  color: #f1c40f;
+  border-color: rgba(241, 196, 15, 0.4);
+}
+
+.mod-action-btn.warning:hover {
+  background: rgba(241, 196, 15, 0.18);
+  border-color: #f1c40f;
+}
+
+/* --- Gradient Theme Builder (Nitro) --- */
+.gradient-preview-box {
+  height: 120px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  margin: 14px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.gradient-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.gradient-preset-card {
+  border-radius: 8px;
+  height: 48px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.gradient-preset-card:hover {
+  transform: translateY(-2px);
+}
+
+.gradient-preset-card.active {
+  border-color: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
+}
+
+.nitro-lock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #f47fff, #eb459e);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* --- Server Header Dropdown & Quick Actions --- */
+.server-header-bar-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: var(--header-primary);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border-subtle);
+  position: relative;
+}
+.server-header-bar-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.server-quick-action-bar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.server-quick-btn {
+  flex: 1;
+  padding: 6px 8px;
+  background: var(--surface-dark);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-normal);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.server-quick-btn:hover {
+  background: var(--brand-blurple);
+  color: #ffffff;
+  border-color: var(--brand-blurple);
+}
+
+.server-dropdown-menu {
+  position: absolute;
+  top: 48px;
+  left: 8px;
+  right: 8px;
+  background: #111214;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.server-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text-normal);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.server-dropdown-item:hover {
+  background: var(--brand-blurple);
+  color: #ffffff;
+}
+.server-dropdown-item.danger:hover {
+  background: var(--danger-red);
+}
+
+/* --- Avatar & Profile Picture Enhancements --- */
+.avatar-preview-img {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid var(--surface-dark);
+}
+
+.avatar-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.avatar-preset-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid var(--border-subtle);
+  background: var(--surface-dark);
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.avatar-preset-btn:hover {
+  transform: scale(1.1);
+  border-color: var(--brand-blurple);
+}
+.avatar-preset-btn.active {
+  border-color: #5865f2;
+  box-shadow: 0 0 10px rgba(88, 101, 242, 0.8);
+}
+.avatar-preset-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* --- Moderation & Audit Log Cards --- */
+.safety-level-card {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--input-dark);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.safety-level-card.active {
+  border-color: var(--brand-green);
+  background: rgba(35, 165, 90, 0.1);
+}
+
+.audit-log-item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--input-dark);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
