@@ -37,6 +37,18 @@
           "type": "boolean",
           "description": "Free Nitro perks active status"
         },
+        "nitroExpiresAt": {
+          "type": "number",
+          "description": "Nitro expiration epoch timestamp in ms"
+        },
+        "customGradient": {
+          "type": "string",
+          "description": "Nitro exclusive CSS gradient string"
+        },
+        "theme": {
+          "type": "string",
+          "description": "Selected theme name"
+        },
         "lowBandwidthMode": {
           "type": "boolean",
           "description": "Whether low-bandwidth data saver mode is enabled"
@@ -71,6 +83,10 @@
           "type": "string",
           "description": "Server name"
         },
+        "emoji": {
+          "type": "string",
+          "description": "Server emoji icon"
+        },
         "description": {
           "type": "string",
           "description": "Server description or topic"
@@ -90,6 +106,22 @@
         "memberIds": {
           "type": "array",
           "description": "List of user IDs who are members of this server"
+        },
+        "members": {
+          "type": "array",
+          "description": "List of member profile objects with assigned role IDs"
+        },
+        "roles": {
+          "type": "array",
+          "description": "List of server roles with permissions and colors"
+        },
+        "bannedUserIds": {
+          "type": "array",
+          "description": "List of banned user IDs"
+        },
+        "mutedUserIds": {
+          "type": "array",
+          "description": "List of timed-out or muted user IDs"
         },
         "boostLevel": {
           "type": "number",

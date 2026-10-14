@@ -24,6 +24,10 @@ service cloud.firestore {
              (!('bannerColor' in data) || data.bannerColor is string) &&
              (!('bio' in data) || data.bio is string) &&
              (!('nitroActive' in data) || data.nitroActive is bool) &&
+             (!('nitroExpiresAt' in data) || data.nitroExpiresAt is number) &&
+             (!('customGradient' in data) || data.customGradient is string) &&
+             (!('theme' in data) || data.theme is string) &&
+             (!('serverIds' in data) || data.serverIds is list) &&
              (!('lowBandwidthMode' in data) || data.lowBandwidthMode is bool) &&
              (!('audioBitrateKbps' in data) || data.audioBitrateKbps is number);
     }
@@ -37,7 +41,12 @@ service cloud.firestore {
              (!('description' in data) || data.description is string) &&
              (!('iconUrl' in data) || data.iconUrl is string) &&
              (!('bannerUrl' in data) || data.bannerUrl is string) &&
-             (!('boostLevel' in data) || data.boostLevel is number);
+             (!('boostLevel' in data) || data.boostLevel is number) &&
+             (!('emoji' in data) || data.emoji is string) &&
+             (!('roles' in data) || data.roles is list) &&
+             (!('members' in data) || data.members is list) &&
+             (!('bannedUserIds' in data) || data.bannedUserIds is list) &&
+             (!('mutedUserIds' in data) || data.mutedUserIds is list);
     }
 
     function isValidChannel(data) {
@@ -86,7 +95,9 @@ service cloud.firestore {
                       request.auth.uid in request.resource.data.memberIds &&
                       isValidServer(request.resource.data);
       allow update: if isAuthenticated() &&
-                      (request.auth.uid == resource.data.ownerId || request.auth.uid in request.resource.data.memberIds) &&
+                      (request.auth.uid == resource.data.ownerId ||
+                       request.auth.uid in resource.data.memberIds ||
+                       request.auth.uid in request.resource.data.memberIds) &&
                       isValidServer(request.resource.data);
       allow delete: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
 

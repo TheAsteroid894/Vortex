@@ -26,55 +26,37 @@
 
   <!-- Middle Channel Sidebar -->
   <aside class="channels-sidebar">
-    <div class="server-header" onclick="openServerSettings()">
-      <span id="header-server-name">My Server</span>
-      <span class="badge-lvl3" id="server-boost-badge">LVL 3 🚀</span>
+    <div class="server-header" id="server-header-bar" onclick="handleServerHeaderClick()" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+      <span id="header-server-name" style="font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Direct Messages</span>
+      <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+        <span class="badge-lvl3" id="server-boost-badge" style="display:none;">LVL 3 🚀</span>
+        <span id="server-header-gear" title="Server Settings" style="font-size:13px; color:var(--text-muted);">⚙️</span>
+      </div>
     </div>
 
     <div class="channels-list">
-      <!-- Direct Messages Section -->
-      <div class="category-header">
-        <span>DIRECT MESSAGES</span>
-        <span style="cursor:pointer; font-size:14px;" title="Add Friend / DM" onclick="openAddFriendModal()">+</span>
-      </div>
-      <div id="direct-messages-container"></div>
-
-      <!-- Text Channels Section -->
-      <div class="category-header" style="margin-top:12px;">
-        <span>TEXT CHANNELS</span>
-        <span style="cursor:pointer; font-size:14px;" title="Create Channel" onclick="openCreateChannelModal()">+</span>
-      </div>
-      <div id="text-channels-container">
-        <div class="channel-item active" id="ch-general" onclick="switchChannel('general', 'general', 'TEXT', true)">
-          <span class="channel-icon">#</span>
-          <span>general</span>
-          <span class="e2ee-tag">E2EE</span>
+      <!-- Direct Messages Section (Active in DMs mode) -->
+      <div id="dms-sidebar-section">
+        <div class="category-header">
+          <span>DIRECT MESSAGES</span>
+          <span style="cursor:pointer; font-size:14px;" title="Add Friend / DM" onclick="openAddFriendModal()">+</span>
         </div>
-        <div class="channel-item" id="ch-e2ee-confidential" onclick="switchChannel('e2ee-confidential', 'e2ee-confidential', 'TEXT', true)">
-          <span class="channel-icon">#</span>
-          <span>e2ee-confidential</span>
-          <span class="e2ee-tag">E2EE</span>
-        </div>
-        <div class="channel-item" id="ch-nitro-lounge" onclick="switchChannel('nitro-lounge', 'nitro-lounge', 'TEXT', false)">
-          <span class="channel-icon">#</span>
-          <span>nitro-lounge</span>
-        </div>
+        <div id="direct-messages-container"></div>
       </div>
 
-      <!-- Voice & Video Channels Section -->
-      <div class="category-header" style="margin-top:12px;">
-        <span>VOICE & VIDEO CHANNELS</span>
-      </div>
-      <div id="voice-channels-container">
-        <div class="channel-item" id="ch-voice-lounge" onclick="switchChannel('voice-lounge', 'voice-lounge', 'VOICE', true)">
-          <span class="channel-icon">🔊</span>
-          <span>voice-lounge</span>
-          <span class="e2ee-tag">6 kbps</span>
+      <!-- Server Channels Section (Active in Server mode) -->
+      <div id="server-channels-section" style="display:none;">
+        <div class="category-header">
+          <span>TEXT CHANNELS</span>
+          <span style="cursor:pointer; font-size:14px;" title="Create Channel" onclick="openCreateChannelModal()">+</span>
         </div>
-        <div class="channel-item" id="ch-video-stage" onclick="switchChannel('video-stage', 'video-stage', 'VIDEO', true)">
-          <span class="channel-icon">📹</span>
-          <span>video-stage (1080p)</span>
+        <div id="text-channels-container"></div>
+
+        <div class="category-header" style="margin-top:14px;">
+          <span>VOICE & VIDEO CHANNELS</span>
+          <span style="cursor:pointer; font-size:14px;" title="Create Channel" onclick="openCreateChannelModal()">+</span>
         </div>
+        <div id="voice-channels-container"></div>
       </div>
     </div>
 

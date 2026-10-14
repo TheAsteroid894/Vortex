@@ -38,10 +38,10 @@ const auth = getAuth(app);
 
 // Client Customization Preferences (saved in browser)
 const savedSettings = JSON.parse(localStorage.getItem("vortex_appearance") || "{}");
-let currentTheme = savedSettings.theme || "dark";
-let currentAccent = savedSettings.accent || "#5865f2";
-let currentFont = savedSettings.font || "sans";
-let currentFontSize = savedSettings.fontSize || "14";
+let currentTheme = localStorage.getItem("vortex_theme") || savedSettings.theme || "dark";
+let currentAccent = localStorage.getItem("vortex_accent") || savedSettings.accent || "#5865f2";
+let currentFont = localStorage.getItem("vortex_font") || savedSettings.font || "sans";
+let currentFontSize = localStorage.getItem("vortex_font_size") || savedSettings.fontSize || "14";
 
 // Nitro & Server Boosts state (monthly, unlocked via watching Ads)
 let nitroExpiresAt = parseInt(localStorage.getItem("vortex_nitro_expires") || "0", 10);
@@ -103,13 +103,17 @@ let unsubscribeChannels = null;
 // --- Apply Theme, Font & Accent Color ---
 function applyAppearance() {
   document.body.className = "";
-  if (currentTheme !== "dark") {
+  if (currentTheme && currentTheme !== "dark") {
     document.body.classList.add("theme-" + currentTheme);
   }
   document.body.classList.add("font-" + currentFont);
   document.documentElement.style.setProperty("--brand-blurple", currentAccent);
   document.documentElement.style.setProperty("--message-font-size", currentFontSize + "px");
 
+  localStorage.setItem("vortex_theme", currentTheme);
+  localStorage.setItem("vortex_accent", currentAccent);
+  localStorage.setItem("vortex_font", currentFont);
+  localStorage.setItem("vortex_font_size", currentFontSize);
   localStorage.setItem("vortex_appearance", JSON.stringify({
     theme: currentTheme,
     accent: currentAccent,
@@ -226,7 +230,9 @@ function updateUserProfileDisplay() {
   const avatarEl = document.getElementById("user-avatar-text");
   if (nameEl) nameEl.innerText = currentUser.displayName;
   if (tagEl) {
-    tagEl.innerText = currentUser.username ? `@${currentUser.username}` : (currentUser.tag || "#1337");
+    const handleStr = currentUser.username ? `@${currentUser.username}` : "";
+    const tagStr = currentUser.tag || "#1337";
+    tagEl.innerText = handleStr ? `${handleStr} • ${tagStr}` : tagStr;
   }
   const initial = (currentUser.displayName[0] || "U").toUpperCase();
   if (avatarEl) avatarEl.innerText = initial;
@@ -867,14 +873,13 @@ window.openSettings = function(initialTab = "my-account") {
       <!-- Settings Sidebar Navigation -->
       <div class="settings-sidebar">
         <div class="settings-section-title">USER SETTINGS</div>
-        <button class="settings-tab-btn ${initialTab === 'my-account' ? 'active' : ''}" onclick="switchSettingsTab('my-account')">👤 My Account</button>
-        <button class="settings-tab-btn ${initialTab === 'profiles' ? 'active' : ''}" onclick="switchSettingsTab('profiles')">🎨 User Profile</button>
+        <button class="settings-tab-btn ${initialTab === 'my-account' ? 'active' : ''}" onclick="switchSettingsTab('my-account')">👤 Profile & Identity</button>
+        <button class="settings-tab-btn ${initialTab === 'appearance' ? 'active' : ''}" onclick="switchSettingsTab('appearance')">🎨 Themes & Styling</button>
 
-        <div class="settings-section-title">APP SETTINGS</div>
-        <button class="settings-tab-btn ${initialTab === 'appearance' ? 'active' : ''}" onclick="switchSettingsTab('appearance')">🖌️ Appearance & Colors</button>
+        <div class="settings-section-title">REWARDS & HARDWARE</div>
         <button class="settings-tab-btn ${initialTab === 'nitro' ? 'active' : ''}" onclick="switchSettingsTab('nitro')">💎 Nitro & Server Boosts</button>
         <button class="settings-tab-btn ${initialTab === 'voice-video' ? 'active' : ''}" onclick="switchSettingsTab('voice-video')">🎙️ Voice & Video</button>
-        <button class="settings-tab-btn ${initialTab === 'privacy' ? 'active' : ''}" onclick="switchSettingsTab('privacy')">🔒 Privacy & Safety</button>
+        <button class="settings-tab-btn ${initialTab === 'privacy' ? 'active' : ''}" onclick="switchSettingsTab('privacy')">🔒 Privacy & Security</button>
 
         <div class="settings-section-title">LEGAL & POLICIES</div>
         <button class="settings-tab-btn ${initialTab === 'terms' ? 'active' : ''}" onclick="switchSettingsTab('terms')">📜 Terms of Service</button>
@@ -883,7 +888,7 @@ window.openSettings = function(initialTab = "my-account") {
         <button class="settings-tab-btn ${initialTab === 'encryption' ? 'active' : ''}" onclick="switchSettingsTab('encryption')">🔐 E2EE Architecture</button>
 
         <div style="margin-top:auto; padding-top:14px; border-top:1px solid var(--border-subtle);">
-          <button class="btn-secondary" style="width:100%; color:var(--danger-red);" onclick="closeModal()">✕ Close Settings</button>
+          <button class="btn-secondary" style="width:100%; color:var(--danger-red); font-weight:600;" onclick="closeModal()">✕ Close Settings</button>
         </div>
       </div>
 
@@ -908,10 +913,8 @@ window.switchSettingsTab = function(tabName) {
 
   switch (tabName) {
     case "my-account":
-      pane.innerHTML = renderMyAccountTab();
-      break;
     case "profiles":
-      pane.innerHTML = renderProfilesTab();
+      pane.innerHTML = renderMyAccountTab();
       break;
     case "appearance":
       pane.innerHTML = renderAppearanceTab();
@@ -943,171 +946,164 @@ window.switchSettingsTab = function(tabName) {
 };
 
 function renderMyAccountTab() {
-  const handle = currentUser.username ? `@${currentUser.username}` : currentUser.tag;
-  return `
-    <div class="settings-pane-title">My Account</div>
-    <div class="settings-pane-desc">Manage your personal account credentials, display identity, and security.</div>
+  const currentHandle = currentUser.username ? `@${currentUser.username}` : "";
+  const tagDisplay = currentUser.tag || "#1337";
+  const fullTagString = currentHandle ? `${currentHandle} • ${tagDisplay}` : tagDisplay;
 
-    <!-- Profile Banner & Avatar Preview Card -->
-    <div style="background:var(--input-dark); border-radius:10px; overflow:hidden; border:1px solid var(--border-subtle); margin-bottom:20px;">
-      <div style="height:80px; background:${currentUser.bannerColor || 'var(--brand-blurple)'}; position:relative;"></div>
+  return `
+    <div class="settings-pane-title">User Profile & Identity</div>
+    <div class="settings-pane-desc">Manage your display name, custom discriminator tag, and active theme. All preferences are automatically persisted in your browser via localStorage.</div>
+
+    <!-- Live Preview Card -->
+    <div style="background:var(--input-dark); border-radius:10px; overflow:hidden; border:1px solid var(--border-subtle); margin-bottom:24px; box-shadow:0 4px 16px rgba(0,0,0,0.2);">
+      <div id="preview-banner" style="height:80px; background:${currentUser.bannerColor || 'var(--brand-blurple)'}; transition:background 0.2s ease;"></div>
       <div style="padding:16px; position:relative; display:flex; justify-content:space-between; align-items:flex-end;">
-        <div style="margin-top:-50px; display:flex; align-items:flex-end; gap:14px;">
-          <div style="width:72px; height:72px; border-radius:50%; background:var(--brand-blurple); border:4px solid var(--surface-dark); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; color:white;">
+        <div style="margin-top:-48px; display:flex; align-items:flex-end; gap:14px;">
+          <div id="preview-avatar-letter" style="width:72px; height:72px; border-radius:50%; background:var(--brand-blurple); border:4px solid var(--surface-dark); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:bold; color:white;">
             ${(currentUser.displayName[0] || 'U').toUpperCase()}
           </div>
           <div>
-            <div style="font-size:18px; font-weight:bold; color:var(--header-primary);">${escapeHtml(currentUser.displayName)}</div>
-            <div style="font-size:12px; color:var(--text-muted);">${escapeHtml(handle)}</div>
+            <div id="preview-display-name" style="font-size:18px; font-weight:bold; color:var(--header-primary);">${escapeHtml(currentUser.displayName)}</div>
+            <div id="preview-handle" style="font-size:12px; color:var(--text-muted); font-family:monospace; margin-top:2px;">${escapeHtml(fullTagString)}</div>
           </div>
         </div>
-        <button class="btn-primary" onclick="switchSettingsTab('profiles')">Edit Profile</button>
+        <div style="font-size:11px; padding:4px 8px; border-radius:4px; background:rgba(88,101,242,0.15); color:var(--brand-blurple); border:1px solid rgba(88,101,242,0.3); font-weight:bold;">
+          Live Preview
+        </div>
       </div>
     </div>
 
-    <!-- Inputs -->
-    <div style="display:flex; flex-direction:column; gap:16px;">
-      <div style="background:var(--input-dark); padding:14px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <div style="font-size:11px; font-weight:bold; color:var(--text-muted);">DISPLAY NAME</div>
-          <div style="font-size:14px; color:var(--header-primary); margin-top:2px;">${escapeHtml(currentUser.displayName)}</div>
-        </div>
-        <button class="btn-secondary" onclick="switchSettingsTab('profiles')">Change</button>
+    <!-- Feedback Toast -->
+    <div id="settings-save-toast" class="settings-toast success" style="display:none; margin-bottom:18px;"></div>
+
+    <!-- Identity & Tag Management Form -->
+    <div style="display:flex; flex-direction:column; gap:18px;">
+      <!-- Display Name Input -->
+      <div>
+        <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">DISPLAY NAME</label>
+        <input type="text" id="edit-display-name" value="${escapeHtml(currentUser.displayName)}" placeholder="e.g. Alex Walker" oninput="updateProfileLivePreview()" style="width:100%; padding:10px 12px; margin-top:6px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px; font-size:14px;">
+        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">This is how members see you across text channels, voice calls, and direct messages.</div>
       </div>
 
-      <div style="background:var(--input-dark); padding:14px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <div style="font-size:11px; font-weight:bold; color:var(--text-muted);">USERNAME (@handle)</div>
-          <div style="font-size:14px; color:var(--header-primary); margin-top:2px;">@${escapeHtml(currentUser.username || 'user')}</div>
+      <!-- Custom Tag Configuration -->
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">CUSTOM DISCRIMINATOR TAG</label>
+          <span style="font-size:11px; color:var(--nitro-pink); font-weight:600;">Discord-Style Tag</span>
         </div>
-        <button class="btn-secondary" onclick="switchSettingsTab('profiles')">Change</button>
-      </div>
-
-      <div style="background:var(--input-dark); padding:14px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <div style="font-size:11px; font-weight:bold; color:var(--text-muted);">NITRO STATUS</div>
-          <div style="font-size:14px; color:${isNitroActive() ? 'var(--nitro-gold)' : 'var(--text-muted)'}; margin-top:2px;">
-            ${isNitroActive() ? `Active Monthly Subscription (${getNitroDaysRemaining()} days remaining)` : 'No active subscription'}
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <input type="text" id="edit-tag" value="${escapeHtml(currentUser.tag || '#1337')}" placeholder="#1337" maxlength="10" oninput="updateProfileLivePreview()" style="width:140px; padding:10px 12px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px; font-family:monospace; font-size:14px; font-weight:bold;">
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+            <span style="font-size:11px; color:var(--text-muted); margin-right:4px;">Presets:</span>
+            <span class="settings-tag-chip" onclick="setPresetTag('#0001')">#0001</span>
+            <span class="settings-tag-chip" onclick="setPresetTag('#1337')">#1337</span>
+            <span class="settings-tag-chip" onclick="setPresetTag('#7777')">#7777</span>
+            <span class="settings-tag-chip" onclick="setPresetTag('#9999')">#9999</span>
+            <span class="settings-tag-chip" onclick="setPresetTag('#2026')">#2026</span>
           </div>
         </div>
-        <button class="btn-secondary" onclick="switchSettingsTab('nitro')">Get Monthly Nitro</button>
+        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Your custom numeric tag identifier. Automatically normalized with # and saved to localStorage.</div>
+      </div>
+
+      <!-- Username (@handle) -->
+      <div>
+        <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">USERNAME (@HANDLE)</label>
+        <div style="position:relative; margin-top:6px;">
+          <span style="position:absolute; left:12px; top:10px; color:var(--text-muted); font-size:14px; font-weight:bold;">@</span>
+          <input type="text" id="edit-username" value="${escapeHtml(currentUser.username || 'user')}" placeholder="vortex_user" oninput="updateProfileLivePreview()" style="width:100%; padding:10px 12px 10px 28px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px; font-size:14px;">
+        </div>
+      </div>
+
+      <!-- Theme Selection -->
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">THEME SELECTION</label>
+          <span style="font-size:11px; color:var(--brand-green); font-weight:600;">Instant Preview</span>
+        </div>
+        <div class="theme-grid" style="margin-top:8px;">
+          <div class="theme-chip ${currentTheme === 'dark' ? 'active' : ''}" data-theme="dark" onclick="selectTheme('dark', 'my-account')">
+            <span class="theme-swatch" style="background:#1e1f22;"></span>
+            <span>🌙 Dark Classic</span>
+          </div>
+          <div class="theme-chip ${currentTheme === 'amoled' ? 'active' : ''}" data-theme="amoled" onclick="selectTheme('amoled', 'my-account')">
+            <span class="theme-swatch" style="background:#000000; border-color:#444;"></span>
+            <span>🖤 Midnight AMOLED</span>
+          </div>
+          <div class="theme-chip ${currentTheme === 'ocean' ? 'active' : ''}" data-theme="ocean" onclick="selectTheme('ocean', 'my-account')">
+            <span class="theme-swatch" style="background:#090d16;"></span>
+            <span>🌊 Deep Sea Slate</span>
+          </div>
+          <div class="theme-chip ${currentTheme === 'light' ? 'active' : ''}" data-theme="light" onclick="selectTheme('light', 'my-account')">
+            <span class="theme-swatch" style="background:#ffffff; border-color:#ccc;"></span>
+            <span>☀️ Clean Light</span>
+          </div>
+          <div class="theme-chip ${currentTheme === 'synthwave' ? 'active' : ''}" data-theme="synthwave" onclick="selectTheme('synthwave', 'my-account')">
+            <span class="theme-swatch" style="background:#130a24;"></span>
+            <span>🔮 Cyber Synthwave</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- About Me / Bio -->
+      <div>
+        <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">ABOUT ME (BIO)</label>
+        <textarea id="edit-bio" rows="2" style="width:100%; padding:10px 12px; margin-top:6px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px; resize:none; font-size:13px;">${escapeHtml(currentUser.bio || '')}</textarea>
+      </div>
+
+      <!-- Banner Accent Color -->
+      <div>
+        <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">PROFILE BANNER COLOR</label>
+        <div style="display:flex; gap:12px; align-items:center; margin-top:6px;">
+          <input type="color" id="edit-banner-color" value="${currentUser.bannerColor || '#5865f2'}" oninput="updateProfileLivePreview()" style="width:50px; height:38px; border:none; cursor:pointer; background:transparent;">
+          <span style="font-size:12px; color:var(--text-muted);">Choose any custom hex color for your personal profile header.</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex; gap:12px; margin-top:10px; padding-top:14px; border-top:1px solid var(--border-subtle);">
+        <button class="btn-primary" style="padding:10px 20px; font-size:13px;" onclick="saveSettingsPreferences()">💾 Save Preferences to LocalStorage</button>
+        <button class="btn-secondary" style="padding:10px 16px; font-size:13px;" onclick="resetSettingsToDefaults()">↺ Reset to Defaults</button>
       </div>
     </div>
   `;
 }
-
-function renderProfilesTab() {
-  return `
-    <div class="settings-pane-title">User Profile</div>
-    <div class="settings-pane-desc">Customize how other members see you across all servers and direct messages.</div>
-
-    <div style="display:flex; flex-direction:column; gap:14px;">
-      <div>
-        <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">DISPLAY NAME</label>
-        <input type="text" id="edit-display-name" value="${escapeHtml(currentUser.displayName)}" style="width:100%; padding:10px; margin-top:4px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px;">
-      </div>
-
-      <div>
-        <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">USERNAME (@handle)</label>
-        <input type="text" id="edit-username" value="${escapeHtml(currentUser.username || '')}" placeholder="cyber_vortex" style="width:100%; padding:10px; margin-top:4px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px;">
-      </div>
-
-      <div>
-        <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">CUSTOM TAG</label>
-        <input type="text" id="edit-tag" value="${escapeHtml(currentUser.tag || '#0001')}" placeholder="#1337" style="width:100%; padding:10px; margin-top:4px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px;">
-      </div>
-
-      <div>
-        <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">ABOUT ME (BIO)</label>
-        <textarea id="edit-bio" rows="3" style="width:100%; padding:10px; margin-top:4px; background:var(--input-dark); border:1px solid var(--border-subtle); color:white; border-radius:6px; resize:none;">${escapeHtml(currentUser.bio || '')}</textarea>
-      </div>
-
-      <div>
-        <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">BANNER ACCENT COLOR</label>
-        <div style="display:flex; gap:10px; align-items:center; margin-top:6px;">
-          <input type="color" id="edit-banner-color" value="${currentUser.bannerColor || '#5865f2'}" style="width:48px; height:38px; border:none; cursor:pointer; background:transparent;">
-          <span style="font-size:12px; color:var(--text-muted);">Pick any color for your user profile header banner</span>
-        </div>
-      </div>
-
-      <div style="display:flex; gap:10px; margin-top:10px;">
-        <button class="btn-primary" onclick="saveFullProfile()">Save Changes</button>
-        <button class="btn-secondary" onclick="switchSettingsTab('my-account')">Cancel</button>
-      </div>
-    </div>
-  `;
-}
-
-window.saveFullProfile = async function() {
-  const newName = document.getElementById("edit-display-name")?.value.trim() || currentUser.displayName;
-  const newUsername = document.getElementById("edit-username")?.value.trim().replace(/^@/, '') || currentUser.username;
-  const newTag = document.getElementById("edit-tag")?.value.trim() || currentUser.tag;
-  const newBio = document.getElementById("edit-bio")?.value.trim() || currentUser.bio;
-  const newBanner = document.getElementById("edit-banner-color")?.value || currentUser.bannerColor;
-
-  currentUser.displayName = newName;
-  currentUser.username = newUsername;
-  currentUser.tag = newTag.startsWith("#") ? newTag : "#" + newTag;
-  currentUser.bio = newBio;
-  currentUser.bannerColor = newBanner;
-
-  localStorage.setItem("vortex_display_name", currentUser.displayName);
-  localStorage.setItem("vortex_username", currentUser.username);
-  localStorage.setItem("vortex_tag", currentUser.tag);
-  localStorage.setItem("vortex_bio", currentUser.bio);
-  localStorage.setItem("vortex_banner_color", currentUser.bannerColor);
-
-  updateUserProfileDisplay();
-  renderMemberList();
-
-  if (!currentUser.isGuest) {
-    try {
-      const userRef = doc(db, "users", currentUser.uid);
-      await setDoc(userRef, {
-        displayName: currentUser.displayName,
-        username: currentUser.username,
-        customTag: currentUser.tag,
-        bio: currentUser.bio,
-        bannerColor: currentUser.bannerColor,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-    } catch (e) {
-      console.warn("Could not save to Firestore:", e);
-    }
-  }
-
-  alert("Profile updated successfully!");
-  switchSettingsTab("my-account");
-};
 
 function renderAppearanceTab() {
   return `
-    <div class="settings-pane-title">Appearance & Custom Themes</div>
-    <div class="settings-pane-desc">Personalize your client colors, typography, and contrast. All changes are saved automatically in your browser.</div>
+    <div class="settings-pane-title">Themes & Visual Customization</div>
+    <div class="settings-pane-desc">Personalize your client colors, typography, and contrast. All theme and appearance preferences are persisted to your browser via localStorage.</div>
 
-    <div style="display:flex; flex-direction:column; gap:20px;">
-      <!-- Theme Selection -->
+    <div style="display:flex; flex-direction:column; gap:22px;">
+      <!-- Theme Selection Grid -->
       <div>
-        <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">THEME</label>
+        <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">APP THEME</label>
         <div class="theme-grid" style="margin-top:8px;">
-          <div class="theme-chip ${currentTheme === 'dark' ? 'active' : ''}" onclick="selectTheme('dark')">
-            <span style="font-size:18px;">🌙</span> Dark Classic
+          <div class="theme-chip ${currentTheme === 'dark' ? 'active' : ''}" data-theme="dark" onclick="selectTheme('dark', 'appearance')">
+            <span class="theme-swatch" style="background:#1e1f22;"></span>
+            <span>🌙 Dark Classic</span>
           </div>
-          <div class="theme-chip ${currentTheme === 'amoled' ? 'active' : ''}" onclick="selectTheme('amoled')">
-            <span style="font-size:18px;">🖤</span> Midnight AMOLED
+          <div class="theme-chip ${currentTheme === 'amoled' ? 'active' : ''}" data-theme="amoled" onclick="selectTheme('amoled', 'appearance')">
+            <span class="theme-swatch" style="background:#000000; border-color:#444;"></span>
+            <span>🖤 Midnight AMOLED</span>
           </div>
-          <div class="theme-chip ${currentTheme === 'ocean' ? 'active' : ''}" onclick="selectTheme('ocean')">
-            <span style="font-size:18px;">🌊</span> Deep Sea Slate
+          <div class="theme-chip ${currentTheme === 'ocean' ? 'active' : ''}" data-theme="ocean" onclick="selectTheme('ocean', 'appearance')">
+            <span class="theme-swatch" style="background:#090d16;"></span>
+            <span>🌊 Deep Sea Slate</span>
           </div>
-          <div class="theme-chip ${currentTheme === 'light' ? 'active' : ''}" onclick="selectTheme('light')">
-            <span style="font-size:18px;">☀️</span> Clean Light
+          <div class="theme-chip ${currentTheme === 'light' ? 'active' : ''}" data-theme="light" onclick="selectTheme('light', 'appearance')">
+            <span class="theme-swatch" style="background:#ffffff; border-color:#ccc;"></span>
+            <span>☀️ Clean Light</span>
+          </div>
+          <div class="theme-chip ${currentTheme === 'synthwave' ? 'active' : ''}" data-theme="synthwave" onclick="selectTheme('synthwave', 'appearance')">
+            <span class="theme-swatch" style="background:#130a24;"></span>
+            <span>🔮 Cyber Synthwave</span>
           </div>
         </div>
       </div>
 
       <!-- Accent Color Selection -->
       <div>
-        <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">CLIENT ACCENT COLOR</label>
+        <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">CLIENT ACCENT COLOR</label>
         <div class="color-picker-row" style="margin-top:8px;">
           <div class="color-dot ${currentAccent.toLowerCase() === '#5865f2' ? 'active' : ''}" style="background:#5865f2;" onclick="selectAccent('#5865f2')" title="Discord Blurple"></div>
           <div class="color-dot ${currentAccent.toLowerCase() === '#23a55a' ? 'active' : ''}" style="background:#23a55a;" onclick="selectAccent('#23a55a')" title="Emerald Green"></div>
@@ -1124,7 +1120,7 @@ function renderAppearanceTab() {
 
       <!-- Font Style Selection -->
       <div>
-        <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">CLIENT FONT FAMILY</label>
+        <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">CLIENT FONT FAMILY</label>
         <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:8px;">
           <button class="btn-secondary ${currentFont === 'sans' ? 'btn-primary' : ''}" style="font-family:sans-serif;" onclick="selectFont('sans')">Modern Sans</button>
           <button class="btn-secondary ${currentFont === 'mono' ? 'btn-primary' : ''}" style="font-family:monospace;" onclick="selectFont('mono')">Cyber Mono</button>
@@ -1136,7 +1132,7 @@ function renderAppearanceTab() {
       <!-- Chat Font Sizing -->
       <div>
         <div style="display:flex; justify-content:space-between;">
-          <label style="font-size:11px; font-weight:bold; color:var(--text-muted);">CHAT FONT SIZE</label>
+          <label style="font-size:11px; font-weight:bold; color:var(--text-muted); letter-spacing:0.5px;">CHAT FONT SIZE</label>
           <span style="font-size:12px; font-weight:bold; color:var(--header-primary);" id="font-size-label">${currentFontSize}px</span>
         </div>
         <input type="range" min="12" max="18" value="${currentFontSize}" oninput="updateFontSize(this.value)" style="width:100%; margin-top:8px;">
@@ -1145,10 +1141,152 @@ function renderAppearanceTab() {
   `;
 }
 
-window.selectTheme = function(themeName) {
+// Live Profile Preview in Settings Modal
+window.updateProfileLivePreview = function() {
+  const nameInput = document.getElementById("edit-display-name");
+  const tagInput = document.getElementById("edit-tag");
+  const usernameInput = document.getElementById("edit-username");
+  const bannerInput = document.getElementById("edit-banner-color");
+
+  const previewName = document.getElementById("preview-display-name");
+  const previewHandle = document.getElementById("preview-handle");
+  const previewAvatar = document.getElementById("preview-avatar-letter");
+  const previewBanner = document.getElementById("preview-banner");
+
+  const name = nameInput ? (nameInput.value.trim() || "Vortex User") : currentUser.displayName;
+  let tag = tagInput ? tagInput.value.trim() : (currentUser.tag || "#1337");
+  if (tag && !tag.startsWith("#")) tag = "#" + tag;
+  const username = usernameInput ? usernameInput.value.trim().replace(/^@/, '') : currentUser.username;
+  const banner = bannerInput ? bannerInput.value : currentUser.bannerColor;
+
+  if (previewName) previewName.innerText = name;
+  if (previewAvatar) previewAvatar.innerText = (name[0] || "U").toUpperCase();
+  if (previewHandle) {
+    const handleStr = username ? `@${username}` : "";
+    previewHandle.innerText = handleStr ? `${handleStr} • ${tag}` : tag;
+  }
+  if (previewBanner) previewBanner.style.background = banner;
+};
+
+// Quick preset tag click handler
+window.setPresetTag = function(tag) {
+  const tagInput = document.getElementById("edit-tag");
+  if (tagInput) {
+    tagInput.value = tag;
+    window.updateProfileLivePreview();
+  }
+};
+
+// Robust Settings & Profile Saver (persisted via localStorage)
+window.saveSettingsPreferences = async function() {
+  const nameInput = document.getElementById("edit-display-name");
+  const tagInput = document.getElementById("edit-tag");
+  const usernameInput = document.getElementById("edit-username");
+  const bioInput = document.getElementById("edit-bio");
+  const bannerInput = document.getElementById("edit-banner-color");
+
+  const newName = nameInput ? (nameInput.value.trim() || "Vortex User") : currentUser.displayName;
+  let newTag = tagInput ? tagInput.value.trim() : currentUser.tag;
+  if (newTag && !newTag.startsWith("#")) {
+    newTag = "#" + newTag;
+  }
+  if (!newTag) newTag = "#1337";
+
+  const newUsername = usernameInput ? usernameInput.value.trim().replace(/^@/, '') : currentUser.username;
+  const newBio = bioInput ? bioInput.value.trim() : currentUser.bio;
+  const newBanner = bannerInput ? bannerInput.value : currentUser.bannerColor;
+
+  // Update in-memory state
+  currentUser.displayName = newName;
+  currentUser.tag = newTag;
+  currentUser.username = newUsername;
+  currentUser.bio = newBio;
+  currentUser.bannerColor = newBanner;
+
+  // Persist directly to localStorage
+  localStorage.setItem("vortex_display_name", currentUser.displayName);
+  localStorage.setItem("vortex_tag", currentUser.tag);
+  localStorage.setItem("vortex_username", currentUser.username);
+  localStorage.setItem("vortex_bio", currentUser.bio);
+  localStorage.setItem("vortex_banner_color", currentUser.bannerColor);
+  localStorage.setItem("vortex_theme", currentTheme);
+  localStorage.setItem("vortex_appearance", JSON.stringify({
+    theme: currentTheme,
+    accent: currentAccent,
+    font: currentFont,
+    fontSize: currentFontSize
+  }));
+
+  // Update live application UI instantly
+  applyAppearance();
+  updateUserProfileDisplay();
+  renderMemberList();
+  window.updateProfileLivePreview();
+
+  // Sync to Firestore if authenticated
+  if (!currentUser.isGuest) {
+    try {
+      const userRef = doc(db, "users", currentUser.uid);
+      await setDoc(userRef, {
+        displayName: currentUser.displayName,
+        username: currentUser.username,
+        customTag: currentUser.tag,
+        bio: currentUser.bio,
+        bannerColor: currentUser.bannerColor,
+        theme: currentTheme,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (e) {
+      console.warn("Firestore profile sync notice:", e);
+    }
+  }
+
+  // Display elegant confirmation toast
+  const toast = document.getElementById("settings-save-toast");
+  if (toast) {
+    toast.style.display = "flex";
+    toast.innerHTML = "✓ Preferences saved to localStorage! Display name, custom tag & theme updated.";
+    setTimeout(() => {
+      if (toast) toast.style.display = "none";
+    }, 4000);
+  }
+};
+
+window.saveFullProfile = window.saveSettingsPreferences;
+
+// Reset Settings Preferences to Factory Defaults
+window.resetSettingsToDefaults = function() {
+  currentUser.displayName = "Vortex User";
+  currentUser.username = "vortex_user";
+  currentUser.tag = "#1337";
+  currentUser.bio = "Exploring the decentralized metaverse with Vortex.";
+  currentUser.bannerColor = "#5865f2";
+  currentTheme = "dark";
+  currentAccent = "#5865f2";
+  currentFont = "sans";
+  currentFontSize = "14";
+
+  localStorage.setItem("vortex_display_name", currentUser.displayName);
+  localStorage.setItem("vortex_username", currentUser.username);
+  localStorage.setItem("vortex_tag", currentUser.tag);
+  localStorage.setItem("vortex_bio", currentUser.bio);
+  localStorage.setItem("vortex_banner_color", currentUser.bannerColor);
+  localStorage.setItem("vortex_theme", currentTheme);
+  localStorage.setItem("vortex_accent", currentAccent);
+  localStorage.setItem("vortex_font", currentFont);
+  localStorage.setItem("vortex_font_size", currentFontSize);
+
+  applyAppearance();
+  updateUserProfileDisplay();
+  renderMemberList();
+  switchSettingsTab("my-account");
+};
+
+// Theme, Accent & Font Handlers
+window.selectTheme = function(themeName, sourceTab = "appearance") {
   currentTheme = themeName;
   applyAppearance();
-  switchSettingsTab("appearance");
+  switchSettingsTab(sourceTab);
 };
 
 window.selectAccent = function(hex) {
