@@ -63,10 +63,12 @@ class VortexRepository(private val db: FirebaseFirestore) {
             val existing = snapshot.toObject(User::class.java)!!
             return existing
         } else {
+            val baseName = firebaseUser.displayName?.lowercase()?.replace("\\s+".toRegex(), "") ?: "user"
             val newUser = User(
                 id = uid,
                 userId = uid,
                 displayName = firebaseUser.displayName ?: "Vortex User",
+                username = baseName + "_" + (100..999).random(),
                 email = firebaseUser.email ?: "",
                 photoUrl = firebaseUser.photoUrl?.toString() ?: "",
                 customTag = "#" + (1000 + (Math.random() * 8999).toInt()),
@@ -79,6 +81,7 @@ class VortexRepository(private val db: FirebaseFirestore) {
             val payload = mapOf(
                 "userId" to uid,
                 "displayName" to newUser.displayName,
+                "username" to newUser.username,
                 "email" to newUser.email,
                 "photoUrl" to newUser.photoUrl,
                 "customTag" to newUser.customTag,
@@ -101,6 +104,7 @@ class VortexRepository(private val db: FirebaseFirestore) {
 
     suspend fun updateUserSettings(
         displayName: String,
+        username: String = "",
         bio: String,
         customTag: String,
         bannerColor: String,
@@ -109,8 +113,9 @@ class VortexRepository(private val db: FirebaseFirestore) {
     ) {
         val uid = requireUserId()
         val userRef = db.collection("users").document(uid)
-        val updates = mapOf(
+        val updates = mutableMapOf<String, Any>(
             "displayName" to displayName,
+            "username" to username,
             "bio" to bio,
             "customTag" to customTag,
             "bannerColor" to bannerColor,

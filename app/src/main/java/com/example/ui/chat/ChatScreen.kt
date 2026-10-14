@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Mood
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -103,6 +105,50 @@ fun ChatScreen(
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
+    }
+
+    if (server == null) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(VortexChannelDark),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(DiscordBlurple.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("🚀", fontSize = 36.sp)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Welcome to Vortex",
+                color = VortexTextPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "No community server selected.\nTap + on the left rail to create a new server or join with an invite code!",
+                color = VortexTextMuted,
+                fontSize = 13.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onOpenDrawer,
+                colors = ButtonDefaults.buttonColors(containerColor = DiscordBlurple),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Open Menu")
+            }
+        }
+        return
     }
 
     Column(

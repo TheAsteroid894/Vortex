@@ -45,6 +45,20 @@ class VortexViewModel(application: Application) : AndroidViewModel(application) 
 
     private val repository = VortexRepository(application)
     val auth = Firebase.auth
+    private val themePreferences = com.example.data.preferences.ThemePreferences(application)
+    val clientAppearance = themePreferences.appearance
+
+    fun setThemeMode(mode: com.example.data.preferences.AppThemeMode) {
+        themePreferences.setThemeMode(mode)
+    }
+
+    fun setAccentHex(hex: String) {
+        themePreferences.setAccentHex(hex)
+    }
+
+    fun setFontStyle(font: com.example.data.preferences.AppFontStyle) {
+        themePreferences.setFontStyle(font)
+    }
 
     // User Profile
     private val _currentUser = MutableStateFlow<User?>(null)
@@ -113,32 +127,18 @@ class VortexViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
 
-            // Observe Servers
+            // Observe Servers (no forced default server)
             launch {
                 repository.observeServers().collect { serverList ->
                     _servers.value = serverList
                     if (_selectedServer.value == null && serverList.isNotEmpty()) {
                         selectServer(serverList[0])
                     } else if (serverList.isEmpty()) {
-                        // Create default server if brand new user!
-                        createDefaultServerForUser()
+                        _selectedServer.value = null
+                        _channels.value = emptyList()
+                        _messages.value = emptyList()
                     }
                 }
-            }
-        }
-    }
-
-    private fun createDefaultServerForUser() {
-        viewModelScope.launch {
-            try {
-                val created = repository.createServer(
-                    name = "Friends & Gaming Hub",
-                    description = "Official Discord-style community space with free Nitro & E2EE encryption!",
-                    iconUrl = "🎮"
-                )
-                selectServer(created)
-            } catch (e: Exception) {
-                _statusMessage.value = "Failed to create default server: ${e.message}"
             }
         }
     }
@@ -405,12 +405,13 @@ class VortexViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun updateProfile(displayName: String, bio: String, customTag: String, bannerColor: String) {
+    fun updateProfile(displayName: String, username: String, bio: String, customTag: String, bannerColor: String) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
             try {
                 repository.updateUserSettings(
                     displayName = displayName,
+                    username = username,
                     bio = bio,
                     customTag = customTag,
                     bannerColor = bannerColor,

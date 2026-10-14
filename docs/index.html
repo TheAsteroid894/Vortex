@@ -16,9 +16,7 @@
   <aside class="server-rail">
     <div class="server-icon active" id="btn-home" title="Direct Messages & Hub" onclick="switchChannel('general', 'general', 'TEXT', true)">🛡️</div>
     <div class="divider"></div>
-    <div id="server-rail-list" style="display:flex; flex-direction:column; gap:10px; align-items:center;">
-      <div class="server-icon" title="Friends & Gaming Hub" onclick="switchChannel('general', 'general', 'TEXT', true)">🎮</div>
-    </div>
+    <div id="server-rail-list" style="display:flex; flex-direction:column; gap:10px; align-items:center;"></div>
     <div class="server-icon" title="Create New Server" style="color:var(--brand-green); font-size:20px;" onclick="openAddServerModal()">+</div>
     <div class="server-icon" title="Join Server with Invite" style="color:var(--brand-blurple); font-size:16px;" onclick="openJoinServerModal()">🔗</div>
     <div style="margin-top:auto;" class="server-icon nitro" title="Free Nitro Perks" onclick="openNitroShowcase()">💎</div>
@@ -27,7 +25,7 @@
   <!-- Middle Channel Sidebar -->
   <aside class="channels-sidebar">
     <div class="server-header" onclick="openServerSettings()">
-      <span id="header-server-name">Friends & Gaming Hub</span>
+      <span id="header-server-name">My Server</span>
       <span class="badge-lvl3">LVL 3 🚀</span>
     </div>
 
@@ -37,16 +35,7 @@
         <span>DIRECT MESSAGES</span>
         <span style="cursor:pointer; font-size:14px;" title="Add Friend / DM" onclick="openAddFriendModal()">+</span>
       </div>
-      <div class="channel-item" onclick="startDM('Alex Cyber')">
-        <span class="channel-icon">@</span>
-        <span>Alex Cyber</span>
-        <span class="e2ee-tag">E2EE</span>
-      </div>
-      <div class="channel-item" onclick="startDM('Sarah_Gamer')">
-        <span class="channel-icon">@</span>
-        <span>Sarah_Gamer</span>
-        <span class="e2ee-tag">E2EE</span>
-      </div>
+      <div id="direct-messages-container"></div>
 
       <!-- Text Channels Section -->
       <div class="category-header" style="margin-top:12px;">
@@ -105,7 +94,7 @@
         </div>
         <div class="user-names">
           <span class="user-name" id="user-display-name">Vortex Web User</span>
-          <span class="user-tag" id="user-custom-tag">#1337</span>
+          <span class="user-tag" id="user-custom-tag">@vortex_user</span>
         </div>
       </div>
       <div style="display:flex; gap:6px;">

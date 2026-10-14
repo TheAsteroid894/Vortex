@@ -83,7 +83,8 @@ fun ChannelDrawer(
     onAddFriendClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val textChannels = channels.filter { it.type == ChannelType.TEXT.name }
+    val dmChannels = channels.filter { it.type == ChannelType.TEXT.name && it.name.startsWith("dm-") }
+    val regularTextChannels = channels.filter { it.type == ChannelType.TEXT.name && !it.name.startsWith("dm-") }
     val voiceChannels = channels.filter { it.type == ChannelType.VOICE.name || it.type == ChannelType.VIDEO.name }
 
     Column(
@@ -179,41 +180,58 @@ fun ChannelDrawer(
                 )
             }
 
-            // Quick DM with friend
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { onAddFriendClick() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(DiscordBlurple),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("@", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
+            if (dmChannels.isEmpty()) {
+                item {
                     Text(
-                        text = "Alex Cyber",
-                        color = VortexTextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f)
+                        text = "No direct messages yet.\nTap + to start a chat.",
+                        color = VortexTextMuted.copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(DiscordGreen)
-                    )
+                    Spacer(modifier = Modifier.height(6.dp))
                 }
-                Spacer(modifier = Modifier.height(10.dp))
+            } else {
+                items(dmChannels, key = { it.id }) { dm ->
+                    val friendName = dm.name.removePrefix("dm-").replace("-", " ")
+                    val isSelected = dm.id == selectedChannel?.id
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isSelected) VortexInputDark else Color.Transparent)
+                            .clickable { onSelectChannel(dm) }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(DiscordBlurple),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("@", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = friendName,
+                            color = if (isSelected) Color.White else VortexTextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(DiscordGreen.copy(alpha = 0.2f))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text("E2EE", color = DiscordGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                item { Spacer(modifier = Modifier.height(10.dp)) }
             }
 
             // Text Channels Section Header
@@ -224,7 +242,7 @@ fun ChannelDrawer(
                 )
             }
 
-            items(textChannels, key = { it.id }) { channel ->
+            items(regularTextChannels, key = { it.id }) { channel ->
                 val isSelected = channel.id == selectedChannel?.id
                 ChannelItemRow(
                     channel = channel,
@@ -368,8 +386,9 @@ fun ChannelDrawer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    val userHandle = if (!currentUser?.username.isNullOrBlank()) "@${currentUser?.username}" else (currentUser?.customTag ?: "#0001")
                     Text(
-                        text = currentUser?.customTag ?: "#0001",
+                        text = userHandle,
                         color = VortexTextMuted,
                         fontSize = 10.sp
                     )

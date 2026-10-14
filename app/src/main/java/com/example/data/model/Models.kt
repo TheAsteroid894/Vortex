@@ -10,6 +10,7 @@ data class User(
     @DocumentId val id: String = "",
     val userId: String = "",
     val displayName: String = "",
+    val username: String = "",
     val email: String = "",
     val photoUrl: String = "",
     val customTag: String = "#0001",

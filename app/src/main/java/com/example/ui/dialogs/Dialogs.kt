@@ -74,6 +74,11 @@ import com.example.ui.theme.VortexInputDark
 import com.example.ui.theme.VortexSurfaceDark
 import com.example.ui.theme.VortexTextMuted
 import com.example.ui.theme.VortexTextPrimary
+import com.example.ui.theme.DiscordCyan
+import com.example.ui.theme.parseColorHex
+import com.example.data.preferences.AppFontStyle
+import com.example.data.preferences.AppThemeMode
+import com.example.data.preferences.ClientAppearance
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -575,25 +580,41 @@ private fun NitroPerkItem(
 @Composable
 fun UserSettingsDialog(
     user: User?,
+    appearance: ClientAppearance = ClientAppearance(),
     onDismiss: () -> Unit,
     onSaveBandwidthSettings: (lowBandwidth: Boolean, audioBitrate: Double) -> Unit,
-    onSaveProfile: (displayName: String, bio: String, customTag: String, bannerColor: String) -> Unit,
+    onSaveProfile: (displayName: String, username: String, bio: String, customTag: String, bannerColor: String) -> Unit,
+    onSaveAppearance: (AppThemeMode, String, AppFontStyle) -> Unit,
     onSignOut: () -> Unit
 ) {
     var lowBandwidth by remember(user) { mutableStateOf(user?.lowBandwidthMode ?: false) }
     var displayName by remember(user) { mutableStateOf(user?.displayName ?: "") }
+    var username by remember(user) { mutableStateOf(user?.username ?: "") }
     var bio by remember(user) { mutableStateOf(user?.bio ?: "") }
     var customTag by remember(user) { mutableStateOf(user?.customTag ?: "#1337") }
     var bannerColor by remember(user) { mutableStateOf(user?.bannerColor ?: "#5865F2") }
 
+    var selectedTheme by remember(appearance) { mutableStateOf(appearance.themeMode) }
+    var selectedAccent by remember(appearance) { mutableStateOf(appearance.accentHex) }
+    var selectedFont by remember(appearance) { mutableStateOf(appearance.fontStyle) }
+
     val safetyFingerprint = remember { E2EEManager.generateSafetyFingerprint(user?.userId ?: "vortex") }
+
+    val accentColors = listOf(
+        "#5865F2" to "Blurple",
+        "#23A55A" to "Green",
+        "#00B0F4" to "Cyan",
+        "#EB459E" to "Pink",
+        "#FEE75C" to "Amber",
+        "#ED4245" to "Red"
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = VortexSurfaceDark,
         title = {
             Text(
-                text = "Settings & Bandwidth",
+                text = "Settings & Client Appearance",
                 color = VortexTextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp
@@ -605,6 +626,202 @@ fun UserSettingsDialog(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
+                // Profile Customization
+                Text(
+                    text = "PROFILE & USERNAME",
+                    color = VortexTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    label = { Text("DISPLAY NAME") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = VortexInputDark,
+                        unfocusedContainerColor = VortexInputDark,
+                        focusedTextColor = VortexTextPrimary,
+                        unfocusedTextColor = VortexTextPrimary
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("USERNAME (@handle)") },
+                    placeholder = { Text("e.g. cyber_vortex") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = VortexInputDark,
+                        unfocusedContainerColor = VortexInputDark,
+                        focusedTextColor = VortexTextPrimary,
+                        unfocusedTextColor = VortexTextPrimary
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = customTag,
+                    onValueChange = { customTag = it },
+                    label = { Text("CUSTOM TAG (FREE NITRO)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = VortexInputDark,
+                        unfocusedContainerColor = VortexInputDark,
+                        focusedTextColor = VortexTextPrimary,
+                        unfocusedTextColor = VortexTextPrimary
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = bio,
+                    onValueChange = { bio = it },
+                    label = { Text("ABOUT ME") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = VortexInputDark,
+                        unfocusedContainerColor = VortexInputDark,
+                        focusedTextColor = VortexTextPrimary,
+                        unfocusedTextColor = VortexTextPrimary
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Custom Themes
+                Text(
+                    text = "CLIENT THEME (SAVED IN APP)",
+                    color = VortexTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AppThemeMode.values().forEach { mode ->
+                        val isSelected = selectedTheme == mode
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) parseColorHex(selectedAccent) else VortexInputDark)
+                                .clickable { selectedTheme = mode }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = when (mode) {
+                                    AppThemeMode.DARK -> "Dark"
+                                    AppThemeMode.LIGHT -> "Light"
+                                    AppThemeMode.AMOLED -> "AMOLED"
+                                    AppThemeMode.OCEAN -> "Ocean"
+                                },
+                                color = if (isSelected) Color.White else VortexTextPrimary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Custom Accent Colors
+                Text(
+                    text = "ACCENT COLOR",
+                    color = VortexTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    accentColors.forEach { (hex, name) ->
+                        val isSelected = selectedAccent.equals(hex, ignoreCase = true)
+                        val color = parseColorHex(hex)
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .border(
+                                    width = if (isSelected) 3.dp else 1.dp,
+                                    color = if (isSelected) Color.White else Color.Transparent,
+                                    shape = CircleShape
+                                )
+                                .clickable { selectedAccent = hex },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Custom Typography Fonts
+                Text(
+                    text = "CLIENT FONT STYLE",
+                    color = VortexTextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AppFontStyle.values().forEach { font ->
+                        val isSelected = selectedFont == font
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) parseColorHex(selectedAccent) else VortexInputDark)
+                                .clickable { selectedFont = font }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = when (font) {
+                                    AppFontStyle.SANS -> "Sans"
+                                    AppFontStyle.MONO -> "Mono"
+                                    AppFontStyle.ROUNDED -> "Round"
+                                    AppFontStyle.SERIF -> "Serif"
+                                },
+                                color = if (isSelected) Color.White else VortexTextPrimary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 // Low Bandwidth Mode Section
                 Text(
                     text = "BANDWIDTH & PERFORMANCE",
@@ -696,61 +913,6 @@ fun UserSettingsDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Profile Info
-                Text(
-                    text = "PROFILE CUSTOMIZATION",
-                    color = VortexTextMuted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = displayName,
-                    onValueChange = { displayName = it },
-                    label = { Text("DISPLAY NAME") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = VortexInputDark,
-                        unfocusedContainerColor = VortexInputDark,
-                        focusedTextColor = VortexTextPrimary,
-                        unfocusedTextColor = VortexTextPrimary
-                    )
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = customTag,
-                    onValueChange = { customTag = it },
-                    label = { Text("CUSTOM TAG (FREE NITRO)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = VortexInputDark,
-                        unfocusedContainerColor = VortexInputDark,
-                        focusedTextColor = VortexTextPrimary,
-                        unfocusedTextColor = VortexTextPrimary
-                    )
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = bio,
-                    onValueChange = { bio = it },
-                    label = { Text("ABOUT ME") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = VortexInputDark,
-                        unfocusedContainerColor = VortexInputDark,
-                        focusedTextColor = VortexTextPrimary,
-                        unfocusedTextColor = VortexTextPrimary
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
                 // Sign Out Button
                 OutlinedButton(
                     onClick = onSignOut,
@@ -771,10 +933,11 @@ fun UserSettingsDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSaveProfile(displayName, bio, customTag, bannerColor)
+                    onSaveProfile(displayName, username, bio, customTag, bannerColor)
+                    onSaveAppearance(selectedTheme, selectedAccent, selectedFont)
                     onDismiss()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = DiscordBlurple),
+                colors = ButtonDefaults.buttonColors(containerColor = parseColorHex(selectedAccent)),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text("Save Changes")

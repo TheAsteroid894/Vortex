@@ -62,15 +62,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            VortexTheme {
-                AppGate()
+            val viewModel: VortexViewModel = viewModel()
+            val appearance by viewModel.clientAppearance.collectAsState()
+            VortexTheme(appearance = appearance) {
+                AppGate(viewModel = viewModel)
             }
         }
     }
 }
 
 @Composable
-fun AppGate() {
+fun AppGate(
+    viewModel: VortexViewModel = viewModel()
+) {
     var currentUser by remember { mutableStateOf(Firebase.auth.currentUser) }
 
     DisposableEffect(Unit) {
@@ -87,16 +91,17 @@ fun AppGate() {
         AuthScreen(
             onAuthSuccess = {
                 currentUser = Firebase.auth.currentUser
+                viewModel.onUserAuthenticated()
             }
         )
     } else {
-        MainAppContent()
+        MainAppContent(viewModel = viewModel)
     }
 }
 
 @Composable
 fun MainAppContent(
-    viewModel: VortexViewModel = viewModel()
+    viewModel: VortexViewModel
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -180,15 +185,23 @@ fun MainAppContent(
         )
     }
 
+    val appearance by viewModel.clientAppearance.collectAsState()
+
     if (showUserSettingsDialog) {
         UserSettingsDialog(
             user = currentUser,
+            appearance = appearance,
             onDismiss = { showUserSettingsDialog = false },
             onSaveBandwidthSettings = { lowBw, bitrate ->
                 viewModel.updateBandwidthMode(lowBw, bitrate)
             },
-            onSaveProfile = { name, bio, tag, color ->
-                viewModel.updateProfile(name, bio, tag, color)
+            onSaveProfile = { name, uname, bio, tag, color ->
+                viewModel.updateProfile(name, uname, bio, tag, color)
+            },
+            onSaveAppearance = { theme, accent, font ->
+                viewModel.setThemeMode(theme)
+                viewModel.setAccentHex(accent)
+                viewModel.setFontStyle(font)
             },
             onSignOut = {
                 showUserSettingsDialog = false
