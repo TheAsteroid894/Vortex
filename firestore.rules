@@ -131,11 +131,19 @@ service cloud.firestore {
       }
     }
 
-    // Voice Sessions
+    // Voice Sessions & WebRTC Signaling
     match /voice_sessions/{channelId} {
       allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && isValidVoiceSession(request.resource.data);
+      allow create, update: if isAuthenticated();
       allow delete: if isAuthenticated();
+
+      match /peers/{peerId} {
+        allow read, write: if isAuthenticated();
+
+        match /candidates/{candId} {
+          allow read, write: if isAuthenticated();
+        }
+      }
     }
   }
 }

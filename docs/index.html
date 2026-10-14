@@ -95,12 +95,28 @@
     </div>
 
     <!-- Active Voice Bar (if connected) -->
-    <div class="voice-bar" id="active-voice-bar" style="display:none;">
-      <div>
-        <div class="voice-status">● Voice Connected</div>
-        <div style="font-size:10px; color:var(--text-muted);">Opus 6kbps • 12ms ping</div>
+    <div class="voice-bar" id="active-voice-bar" style="display:none; flex-direction:column; gap:6px; padding:10px 12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div class="voice-status" id="voice-bar-status" style="display:flex; align-items:center; gap:6px;">
+            <span style="color:var(--brand-green); font-size:10px;">●</span>
+            <span id="voice-bar-title" style="font-weight:700;">Voice Connected</span>
+          </div>
+          <div id="voice-bar-channel-desc" style="font-size:10px; color:var(--text-muted); margin-top:1px;">WebRTC P2P Mesh • Active</div>
+        </div>
+        <button onclick="disconnectVoice()" style="background:transparent; border:none; color:var(--danger-red); cursor:pointer; font-size:12px; font-weight:bold;" title="Disconnect Voice">✕</button>
       </div>
-      <button onclick="disconnectVoice()" style="background:transparent; border:none; color:var(--danger-red); cursor:pointer; font-weight:bold;">Disconnect</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.06); padding-top:6px;">
+        <div class="volume-meter-wrap" title="Microphone Activity Level">
+          <span style="font-size:10px; color:var(--text-muted);">Mic</span>
+          <div class="volume-meter-bar"><div class="volume-meter-fill" id="voice-bar-mic-meter"></div></div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-circle" id="vb-mic" style="width:26px; height:26px; font-size:12px;" onclick="toggleMute()" title="Mute/Unmute">🎙️</button>
+          <button class="btn-circle" id="vb-deaf" style="width:26px; height:26px; font-size:12px;" onclick="toggleDeafen()" title="Deafen/Undeafen">🎧</button>
+          <button class="btn-circle" id="vb-ptt" style="width:26px; height:26px; font-size:10px; font-weight:bold;" onclick="togglePushToTalk()" title="Toggle Push-to-Talk">PTT</button>
+        </div>
+      </div>
     </div>
 
     <!-- User Status Footer -->
@@ -166,23 +182,51 @@
 
     <!-- Voice / Video Calling Stage (Hidden by default, shown when voice channel is clicked) -->
     <div class="stage-container" id="stage-container" style="display:none;">
-      <div class="stage-grid">
-        <div class="participant-tile speaking" id="tile-1">
-          <div class="participant-avatar">U</div>
-          <div class="participant-tag">You (Host) 🎙️</div>
+      <!-- Top Stage Status Bar -->
+      <div class="stage-top-bar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:16px;">🔊</span>
+          <div>
+            <div id="stage-channel-name" style="font-size:14px; font-weight:700; color:var(--header-primary);">Voice Channel</div>
+            <div id="stage-rtc-status" style="font-size:11px; color:var(--text-muted);">WebRTC Peer-to-Peer Mesh • Google STUN</div>
+          </div>
         </div>
-        <div class="participant-tile" id="tile-2">
-          <div class="participant-avatar" style="background:#5865f2;">V</div>
-          <div class="participant-tag">Vortex Voice 🔊</div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="volume-meter-wrap" title="Live Microphone Audio Level">
+            <span style="font-size:11px; color:var(--text-muted);">Live Mic:</span>
+            <div class="volume-meter-bar"><div class="volume-meter-fill" id="stage-mic-meter"></div></div>
+          </div>
+          <span class="ptt-badge" id="stage-ptt-indicator" onclick="togglePushToTalk()" title="Click to toggle Voice Activity / Push-to-Talk">
+            🎙️ Voice Activity
+          </span>
         </div>
+      </div>
+
+      <!-- Real-Time Video/Audio Grid -->
+      <div class="stage-grid" id="stage-grid">
+        <!-- Local User Tile -->
+        <div class="participant-tile" id="local-participant-tile">
+          <video id="local-video-elem" class="stage-video" autoplay playsinline muted style="display:none;"></video>
+          <div class="participant-avatar" id="local-stage-avatar">
+            <span id="local-avatar-text">U</span>
+            <img id="local-avatar-img" src="" alt="Avatar" style="display:none;">
+          </div>
+          <div class="participant-tag">
+            <span id="local-tag-name">You (Host)</span>
+            <span id="local-tag-mic-icon">🎙️</span>
+          </div>
+        </div>
+        <!-- Remote Participant Tiles populated dynamically by WebRTC engine -->
       </div>
 
       <!-- Stage floating controls -->
       <div class="controls-bar">
-        <button class="btn-circle" id="stage-mic" onclick="toggleMute()" title="Microphone">🎙️</button>
-        <button class="btn-circle" id="stage-video" onclick="toggleVideo()" title="Camera">📹</button>
+        <button class="btn-circle" id="stage-mic" onclick="toggleMute()" title="Microphone (Mute/Unmute)">🎙️</button>
+        <button class="btn-circle" id="stage-deaf" onclick="toggleDeafen()" title="Deafen (Silence Output)">🎧</button>
+        <button class="btn-circle" id="stage-video" onclick="toggleVideo()" title="Camera Video">📹</button>
         <button class="btn-circle" id="stage-share" onclick="toggleShare()" title="Share Screen">🖥️</button>
-        <button class="btn-circle danger" onclick="disconnectVoice()" title="Disconnect">📞</button>
+        <button class="btn-circle" id="stage-ptt-toggle" onclick="togglePushToTalk()" title="Toggle Push-to-Talk">PTT</button>
+        <button class="btn-circle danger" onclick="disconnectVoice()" title="Disconnect" style="background:var(--danger-red); border-color:var(--danger-red);">📞</button>
       </div>
     </div>
 

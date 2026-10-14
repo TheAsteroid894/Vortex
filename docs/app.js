@@ -1304,6 +1304,7 @@ window.switchChannel = function(id, name, type, isEncrypted) {
     messagesView.style.display = "none";
     stageView.style.display = "flex";
     if (voiceBar) voiceBar.style.display = "flex";
+    window.connectVoiceChannel(id, name, type);
   } else {
     messagesView.style.display = "flex";
     stageView.style.display = "none";
@@ -1369,35 +1370,704 @@ window.handleAuthAction = function() {
   }
 };
 
+// ============================================================================
+// Real-Time WebRTC Peer-to-Peer Voice & Video Engine
+// ============================================================================
+
+const RTC_CONFIG = {
+  iceServers: [
+    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }
+  ]
+};
+
+let localVoiceStream = null;
+let localAudioContext = null;
+let localAnalyser = null;
+let localDataArray = null;
+let vuMeterAnimationId = null;
+
+let isMuted = false;
+let isDeafened = false;
+let isVideoOn = false;
+let isSharing = false;
+let isPushToTalk = false;
+let isPTTKeyDown = false;
+
+let peerConnections = {}; // peerUid -> RTCPeerConnection
+let peerRemoteStreams = {}; // peerUid -> MediaStream
+let remoteAudioElements = {}; // peerUid -> HTMLAudioElement
+let unsubscribeVoicePeers = null;
+let unsubscribeSignals = null;
+let currentVoiceChannelId = null;
+let activeVoicePeers = [];
+
+// Connect to a voice channel & acquire real microphone audio
+window.connectVoiceChannel = async function(channelId, channelName, channelType) {
+  if (currentVoiceChannelId === channelId && localVoiceStream) {
+    return;
+  }
+
+  if (currentVoiceChannelId && currentVoiceChannelId !== channelId) {
+    await window.disconnectVoice(false);
+  }
+
+  currentVoiceChannelId = channelId;
+
+  // Update UI Elements
+  const stageTitle = document.getElementById("stage-channel-name");
+  if (stageTitle) stageTitle.innerText = channelName;
+  const stageRtcStatus = document.getElementById("stage-rtc-status");
+  if (stageRtcStatus) stageRtcStatus.innerText = "Requesting microphone permission...";
+  const vbTitle = document.getElementById("voice-bar-title");
+  if (vbTitle) vbTitle.innerText = channelName;
+  const vbDesc = document.getElementById("voice-bar-channel-desc");
+  if (vbDesc) vbDesc.innerText = "Connecting WebRTC P2P...";
+  const voiceBar = document.getElementById("active-voice-bar");
+  if (voiceBar) voiceBar.style.display = "flex";
+
+  // Update local participant avatar
+  updateLocalStageAvatar();
+
+  // 1. Acquire Local Microphone Audio (and Camera if video on)
+  try {
+    localVoiceStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      },
+      video: isVideoOn ? { width: { ideal: 640 }, height: { ideal: 360 } } : false
+    });
+    if (stageRtcStatus) stageRtcStatus.innerText = "Microphone active • WebRTC P2P Mesh";
+    if (vbDesc) vbDesc.innerText = "WebRTC Connected • Google STUN";
+  } catch (err) {
+    console.warn("Microphone access prompt note (using listen-only audio destination):", err);
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const dest = audioCtx.createMediaStreamDestination();
+      osc.connect(dest);
+      osc.start();
+      localVoiceStream = dest.stream;
+      localVoiceStream.getAudioTracks().forEach(t => t.enabled = false);
+      if (stageRtcStatus) stageRtcStatus.innerText = "Listen-only • WebRTC Connected";
+      if (vbDesc) vbDesc.innerText = "Listen-only • P2P Mesh";
+    } catch (e2) {
+      localVoiceStream = new MediaStream();
+    }
+  }
+
+  // If video is on, attach to local video element
+  const localVideoElem = document.getElementById("local-video-elem");
+  const localAvatar = document.getElementById("local-stage-avatar");
+  if (localVideoElem) {
+    if (isVideoOn && localVoiceStream.getVideoTracks().length > 0) {
+      localVideoElem.srcObject = localVoiceStream;
+      localVideoElem.style.display = "block";
+      if (localAvatar) localAvatar.style.display = "none";
+    } else {
+      localVideoElem.style.display = "none";
+      if (localAvatar) localAvatar.style.display = "flex";
+    }
+  }
+
+  // 2. Setup Audio Visualizer (VU meter & Voice Activity Detection)
+  setupAudioVisualizer(localVoiceStream);
+
+  // Apply initial mute / PTT states to audio track
+  applyAudioTrackState();
+
+  // 3. Register Peer in Firestore Voice Session
+  const serverId = currentServer ? currentServer.id : "dms";
+  try {
+    const peerDocRef = doc(db, "servers", serverId, "channels", channelId, "voice_peers", currentUser.uid);
+    await setDoc(peerDocRef, {
+      uid: currentUser.uid,
+      displayName: currentUser.displayName,
+      photoURL: currentUser.photoURL || "",
+      tag: currentUser.tag || "#1337",
+      isMuted: isMuted,
+      isDeafened: isDeafened,
+      isVideoOn: isVideoOn,
+      joinedAt: serverTimestamp()
+    });
+  } catch (e) {
+    console.warn("Firestore voice peer registration fallback:", e);
+  }
+
+  // 4. Listen for other peers joining/leaving this voice channel
+  listenToVoicePeers(serverId, channelId);
+
+  // 5. Listen for incoming WebRTC SDP signals and ICE candidates
+  listenToSignals(serverId, channelId);
+};
+
+function updateLocalStageAvatar() {
+  const lAvatarText = document.getElementById("local-avatar-text");
+  const lAvatarImg = document.getElementById("local-avatar-img");
+  const lTagName = document.getElementById("local-tag-name");
+  if (lTagName) lTagName.innerText = `${currentUser.displayName} (You)`;
+  if (currentUser.photoURL) {
+    if (lAvatarImg) {
+      lAvatarImg.src = currentUser.photoURL;
+      lAvatarImg.style.display = "block";
+    }
+    if (lAvatarText) lAvatarText.style.display = "none";
+  } else {
+    if (lAvatarText) {
+      lAvatarText.innerText = (currentUser.displayName[0] || 'U').toUpperCase();
+      lAvatarText.style.display = "block";
+    }
+    if (lAvatarImg) lAvatarImg.style.display = "none";
+  }
+}
+
+function setupAudioVisualizer(stream) {
+  try {
+    if (localAudioContext) {
+      try { localAudioContext.close(); } catch (e) {}
+    }
+    localAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (stream && stream.getAudioTracks().length > 0) {
+      const source = localAudioContext.createMediaStreamSource(stream);
+      localAnalyser = localAudioContext.createAnalyser();
+      localAnalyser.fftSize = 64;
+      source.connect(localAnalyser);
+      localDataArray = new Uint8Array(localAnalyser.frequencyBinCount);
+    }
+
+    if (vuMeterAnimationId) clearInterval(vuMeterAnimationId);
+    vuMeterAnimationId = setInterval(() => {
+      if (!localAnalyser || !localDataArray) return;
+      localAnalyser.getByteFrequencyData(localDataArray);
+      let sum = 0;
+      for (let i = 0; i < localDataArray.length; i++) {
+        sum += localDataArray[i];
+      }
+      const avg = sum / localDataArray.length;
+      const pct = Math.min(100, Math.round((avg / 120) * 100));
+
+      const m1 = document.getElementById("voice-bar-mic-meter");
+      const m2 = document.getElementById("stage-mic-meter");
+      const shouldTransmit = !isMuted && (!isPushToTalk || isPTTKeyDown);
+      if (m1) m1.style.width = shouldTransmit ? `${pct}%` : "0%";
+      if (m2) m2.style.width = shouldTransmit ? `${pct}%` : "0%";
+
+      const isSpeaking = shouldTransmit && avg > 12;
+      const tile = document.getElementById("local-participant-tile");
+      if (tile) tile.classList.toggle("speaking", isSpeaking);
+    }, 80);
+  } catch (err) {
+    console.warn("Audio visualizer note:", err);
+  }
+}
+
+function applyAudioTrackState() {
+  if (!localVoiceStream) return;
+  const shouldTransmit = !isMuted && (!isPushToTalk || isPTTKeyDown);
+  localVoiceStream.getAudioTracks().forEach(track => {
+    track.enabled = shouldTransmit;
+  });
+
+  const micIcon = document.getElementById("local-tag-mic-icon");
+  if (micIcon) micIcon.innerText = shouldTransmit ? "🎙️" : "🔇";
+  const stageMicBtn = document.getElementById("stage-mic");
+  const vbMicBtn = document.getElementById("vb-mic");
+  const btnMute = document.getElementById("btn-mute");
+
+  if (stageMicBtn) {
+    stageMicBtn.innerText = isMuted ? "🔇" : "🎙️";
+    stageMicBtn.classList.toggle("muted-state", isMuted);
+  }
+  if (vbMicBtn) {
+    vbMicBtn.innerText = isMuted ? "🔇" : "🎙️";
+    vbMicBtn.classList.toggle("muted-state", isMuted);
+  }
+  if (btnMute) btnMute.innerText = isMuted ? "🔇" : "🎙️";
+}
+
+// Push-to-Talk Toggle
+window.togglePushToTalk = function() {
+  isPushToTalk = !isPushToTalk;
+  const pttIndicator = document.getElementById("stage-ptt-indicator");
+  const stagePttBtn = document.getElementById("stage-ptt-toggle");
+  const vbPttBtn = document.getElementById("vb-ptt");
+
+  if (isPushToTalk) {
+    if (pttIndicator) {
+      pttIndicator.innerHTML = "🎙️ PTT (HOLD SPACE)";
+      pttIndicator.classList.remove("transmitting");
+    }
+    if (stagePttBtn) stagePttBtn.classList.add("active");
+    if (vbPttBtn) vbPttBtn.classList.add("active");
+  } else {
+    if (pttIndicator) {
+      pttIndicator.innerHTML = "🎙️ Voice Activity";
+      pttIndicator.classList.remove("transmitting");
+    }
+    if (stagePttBtn) stagePttBtn.classList.remove("active");
+    if (vbPttBtn) vbPttBtn.classList.remove("active");
+  }
+  applyAudioTrackState();
+};
+
+// Global PTT Key Listeners
+window.addEventListener("keydown", (e) => {
+  if (!isPushToTalk || isPTTKeyDown) return;
+  if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable) {
+    return;
+  }
+  if (e.code === "Space" || e.code === "ControlLeft") {
+    isPTTKeyDown = true;
+    const pttIndicator = document.getElementById("stage-ptt-indicator");
+    if (pttIndicator) pttIndicator.classList.add("transmitting");
+    applyAudioTrackState();
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  if (!isPushToTalk || !isPTTKeyDown) return;
+  if (e.code === "Space" || e.code === "ControlLeft") {
+    isPTTKeyDown = false;
+    const pttIndicator = document.getElementById("stage-ptt-indicator");
+    if (pttIndicator) pttIndicator.classList.remove("transmitting");
+    applyAudioTrackState();
+  }
+});
+
 window.toggleMute = function() {
   isMuted = !isMuted;
-  const btn = document.getElementById("btn-mute");
-  if (btn) btn.innerText = isMuted ? "🔇" : "🎙️";
-  const stageMic = document.getElementById("stage-mic");
-  if (stageMic) stageMic.innerText = isMuted ? "🔇" : "🎙️";
-  const tile1 = document.getElementById("tile-1");
-  if (tile1) tile1.classList.toggle("speaking", !isMuted);
+  applyAudioTrackState();
+  notifyPeerStatusUpdate();
 };
 
-window.toggleVideo = function() {
+window.toggleDeafen = function() {
+  isDeafened = !isDeafened;
+  if (isDeafened) {
+    isMuted = true;
+  }
+  applyAudioTrackState();
+
+  Object.values(remoteAudioElements).forEach(audioEl => {
+    if (audioEl) audioEl.muted = isDeafened;
+  });
+
+  const stageDeaf = document.getElementById("stage-deaf");
+  const vbDeaf = document.getElementById("vb-deaf");
+  if (stageDeaf) {
+    stageDeaf.innerText = isDeafened ? "🔇" : "🎧";
+    stageDeaf.classList.toggle("muted-state", isDeafened);
+  }
+  if (vbDeaf) {
+    vbDeaf.innerText = isDeafened ? "🔇" : "🎧";
+    vbDeaf.classList.toggle("muted-state", isDeafened);
+  }
+  notifyPeerStatusUpdate();
+};
+
+window.toggleVideo = async function() {
   isVideoOn = !isVideoOn;
-  const btn = document.getElementById("stage-video");
-  if (btn) btn.classList.toggle("active", isVideoOn);
+  const stageVideoBtn = document.getElementById("stage-video");
+  if (stageVideoBtn) stageVideoBtn.classList.toggle("active", isVideoOn);
+
+  const localVideoElem = document.getElementById("local-video-elem");
+  const localAvatar = document.getElementById("local-stage-avatar");
+
+  if (isVideoOn) {
+    try {
+      const vidStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 360 } }
+      });
+      const videoTrack = vidStream.getVideoTracks()[0];
+      if (localVoiceStream) {
+        localVoiceStream.getVideoTracks().forEach(t => { localVoiceStream.removeTrack(t); t.stop(); });
+        localVoiceStream.addTrack(videoTrack);
+      }
+      if (localVideoElem) {
+        localVideoElem.srcObject = localVoiceStream;
+        localVideoElem.style.display = "block";
+      }
+      if (localAvatar) localAvatar.style.display = "none";
+
+      Object.values(peerConnections).forEach(pc => {
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === "video");
+        if (sender) {
+          sender.replaceTrack(videoTrack);
+        } else {
+          pc.addTrack(videoTrack, localVoiceStream);
+        }
+      });
+    } catch (err) {
+      console.warn("Camera access note:", err);
+      isVideoOn = false;
+      if (stageVideoBtn) stageVideoBtn.classList.remove("active");
+    }
+  } else {
+    if (localVoiceStream) {
+      localVoiceStream.getVideoTracks().forEach(t => { t.stop(); localVoiceStream.removeTrack(t); });
+    }
+    if (localVideoElem) {
+      localVideoElem.srcObject = null;
+      localVideoElem.style.display = "none";
+    }
+    if (localAvatar) localAvatar.style.display = "flex";
+
+    Object.values(peerConnections).forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track && s.track.kind === "video");
+      if (sender) pc.removeTrack(sender);
+    });
+  }
+  notifyPeerStatusUpdate();
 };
 
-window.toggleShare = function() {
-  isSharing = !isSharing;
-  const btn = document.getElementById("stage-share");
-  if (btn) btn.classList.toggle("active", isSharing);
+window.toggleShare = async function() {
+  if (isSharing) {
+    isSharing = false;
+    const stageShareBtn = document.getElementById("stage-share");
+    if (stageShareBtn) stageShareBtn.classList.remove("active");
+    if (isVideoOn) {
+      isVideoOn = false;
+      window.toggleVideo();
+    } else {
+      if (localVoiceStream) {
+        localVoiceStream.getVideoTracks().forEach(t => { t.stop(); localVoiceStream.removeTrack(t); });
+      }
+      const localVideoElem = document.getElementById("local-video-elem");
+      const localAvatar = document.getElementById("local-stage-avatar");
+      if (localVideoElem) localVideoElem.style.display = "none";
+      if (localAvatar) localAvatar.style.display = "flex";
+    }
+    return;
+  }
+
+  try {
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    isSharing = true;
+    const stageShareBtn = document.getElementById("stage-share");
+    if (stageShareBtn) stageShareBtn.classList.add("active");
+
+    const screenTrack = screenStream.getVideoTracks()[0];
+    screenTrack.onended = () => {
+      if (isSharing) window.toggleShare();
+    };
+
+    if (localVoiceStream) {
+      localVoiceStream.getVideoTracks().forEach(t => { localVoiceStream.removeTrack(t); t.stop(); });
+      localVoiceStream.addTrack(screenTrack);
+    }
+
+    const localVideoElem = document.getElementById("local-video-elem");
+    const localAvatar = document.getElementById("local-stage-avatar");
+    if (localVideoElem) {
+      localVideoElem.srcObject = localVoiceStream;
+      localVideoElem.style.display = "block";
+    }
+    if (localAvatar) localAvatar.style.display = "none";
+
+    Object.values(peerConnections).forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track && s.track.kind === "video");
+      if (sender) {
+        sender.replaceTrack(screenTrack);
+      } else {
+        pc.addTrack(screenTrack, localVoiceStream);
+      }
+    });
+  } catch (err) {
+    console.warn("Screen share note:", err);
+  }
 };
 
-window.disconnectVoice = function() {
-  document.getElementById("stage-container").style.display = "none";
-  document.getElementById("messages-container").style.display = "flex";
+window.disconnectVoice = async function(switchChannelToGeneral = true) {
+  if (vuMeterAnimationId) {
+    clearInterval(vuMeterAnimationId);
+    vuMeterAnimationId = null;
+  }
+
+  if (localAudioContext) {
+    try { localAudioContext.close(); } catch (e) {}
+    localAudioContext = null;
+    localAnalyser = null;
+  }
+
+  if (localVoiceStream) {
+    localVoiceStream.getTracks().forEach(t => t.stop());
+    localVoiceStream = null;
+  }
+
+  Object.keys(peerConnections).forEach(peerUid => {
+    try { peerConnections[peerUid].close(); } catch (e) {}
+    delete peerConnections[peerUid];
+  });
+  Object.keys(remoteAudioElements).forEach(peerUid => {
+    try {
+      remoteAudioElements[peerUid].pause();
+      remoteAudioElements[peerUid].remove();
+    } catch (e) {}
+    delete remoteAudioElements[peerUid];
+  });
+  peerRemoteStreams = {};
+
+  if (unsubscribeVoicePeers) {
+    unsubscribeVoicePeers();
+    unsubscribeVoicePeers = null;
+  }
+  if (unsubscribeSignals) {
+    unsubscribeSignals();
+    unsubscribeSignals = null;
+  }
+
+  if (currentVoiceChannelId) {
+    const serverId = currentServer ? currentServer.id : "dms";
+    try {
+      const peerDocRef = doc(db, "servers", serverId, "channels", currentVoiceChannelId, "voice_peers", currentUser.uid);
+      await deleteDoc(peerDocRef);
+    } catch (e) {}
+  }
+
+  currentVoiceChannelId = null;
+  isSharing = false;
+  isVideoOn = false;
+  isMuted = false;
+  isDeafened = false;
+
+  const stageGrid = document.getElementById("stage-grid");
+  if (stageGrid) {
+    const localTile = document.getElementById("local-participant-tile");
+    stageGrid.innerHTML = "";
+    if (localTile) stageGrid.appendChild(localTile);
+  }
+
+  const stageView = document.getElementById("stage-container");
+  const messagesView = document.getElementById("messages-container");
   const voiceBar = document.getElementById("active-voice-bar");
+  if (stageView) stageView.style.display = "none";
+  if (messagesView) messagesView.style.display = "flex";
   if (voiceBar) voiceBar.style.display = "none";
-  window.switchChannel("general", "general", "TEXT", true);
+
+  if (switchChannelToGeneral) {
+    window.switchChannel("general", "general", "TEXT", true);
+  }
 };
+
+function notifyPeerStatusUpdate() {
+  if (!currentVoiceChannelId) return;
+  const serverId = currentServer ? currentServer.id : "dms";
+  try {
+    const peerDocRef = doc(db, "servers", serverId, "channels", currentVoiceChannelId, "voice_peers", currentUser.uid);
+    updateDoc(peerDocRef, {
+      isMuted: isMuted,
+      isDeafened: isDeafened,
+      isVideoOn: isVideoOn,
+      updatedAt: serverTimestamp()
+    });
+  } catch (e) {}
+}
+
+function listenToVoicePeers(serverId, channelId) {
+  if (unsubscribeVoicePeers) unsubscribeVoicePeers();
+  const peersRef = collection(db, "servers", serverId, "channels", channelId, "voice_peers");
+
+  unsubscribeVoicePeers = onSnapshot(peersRef, (snap) => {
+    activeVoicePeers = [];
+    const currentPeerIds = new Set();
+
+    snap.forEach(docSnap => {
+      const p = docSnap.data();
+      if (p.uid !== currentUser.uid) {
+        activeVoicePeers.push(p);
+        currentPeerIds.add(p.uid);
+        if (!peerConnections[p.uid]) {
+          initiateOrPreparePeerConnection(serverId, channelId, p);
+        }
+        updateRemotePeerTile(p);
+      }
+    });
+
+    Object.keys(peerConnections).forEach(pUid => {
+      if (!currentPeerIds.has(pUid)) {
+        removeRemotePeer(pUid);
+      }
+    });
+
+    const vbDesc = document.getElementById("voice-bar-channel-desc");
+    if (vbDesc) {
+      const count = activeVoicePeers.length + 1;
+      vbDesc.innerText = `${count} ${count === 1 ? 'member' : 'members'} in voice • P2P Mesh`;
+    }
+  });
+}
+
+function initiateOrPreparePeerConnection(serverId, channelId, remotePeer) {
+  const peerUid = remotePeer.uid;
+  const pc = new RTCPeerConnection(RTC_CONFIG);
+  peerConnections[peerUid] = pc;
+
+  if (localVoiceStream) {
+    localVoiceStream.getTracks().forEach(track => {
+      pc.addTrack(track, localVoiceStream);
+    });
+  }
+
+  pc.ontrack = (event) => {
+    const remoteStream = event.streams[0] || new MediaStream([event.track]);
+    peerRemoteStreams[peerUid] = remoteStream;
+    attachRemoteStreamToStage(peerUid, remoteStream, remotePeer);
+  };
+
+  const pairKey = currentUser.uid < peerUid ? `${currentUser.uid}_${peerUid}` : `${peerUid}_${currentUser.uid}`;
+  const candCollection = collection(db, "servers", serverId, "channels", channelId, "signals", pairKey, `cand_${currentUser.uid}`);
+
+  pc.onicecandidate = async (event) => {
+    if (event.candidate) {
+      try {
+        await addDoc(candCollection, event.candidate.toJSON());
+      } catch (e) {}
+    }
+  };
+
+  const isCaller = currentUser.uid < peerUid;
+  const signalDocRef = doc(db, "servers", serverId, "channels", channelId, "signals", pairKey);
+
+  if (isCaller) {
+    pc.onnegotiationneeded = async () => {
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await setDoc(signalDocRef, {
+          callerUid: currentUser.uid,
+          calleeUid: peerUid,
+          offer: { type: offer.type, sdp: offer.sdp },
+          createdAt: serverTimestamp()
+        }, { merge: true });
+      } catch (e) {
+        console.warn("Offer error:", e);
+      }
+    };
+  }
+}
+
+function listenToSignals(serverId, channelId) {
+  if (unsubscribeSignals) unsubscribeSignals();
+  const signalsRef = collection(db, "servers", serverId, "channels", channelId, "signals");
+
+  unsubscribeSignals = onSnapshot(signalsRef, async (snap) => {
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+      const pairKey = docSnap.id;
+
+      if (data.callerUid === currentUser.uid && data.calleeUid) {
+        const peerUid = data.calleeUid;
+        const pc = peerConnections[peerUid];
+        if (pc && data.answer && !pc.currentRemoteDescription) {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+            listenToRemoteIceCandidates(serverId, channelId, pairKey, peerUid, pc);
+          } catch (e) {
+            console.warn("Set remote answer error:", e);
+          }
+        }
+      } else if (data.calleeUid === currentUser.uid && data.callerUid) {
+        const peerUid = data.callerUid;
+        const pc = peerConnections[peerUid];
+        if (pc && data.offer && !pc.currentRemoteDescription) {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await setDoc(docSnap.ref, {
+              answer: { type: answer.type, sdp: answer.sdp }
+            }, { merge: true });
+            listenToRemoteIceCandidates(serverId, channelId, pairKey, peerUid, pc);
+          } catch (e) {
+            console.warn("Answer error:", e);
+          }
+        }
+      }
+    }
+  });
+}
+
+function listenToRemoteIceCandidates(serverId, channelId, pairKey, peerUid, pc) {
+  const remoteCandCollection = collection(db, "servers", serverId, "channels", channelId, "signals", pairKey, `cand_${peerUid}`);
+  onSnapshot(remoteCandCollection, (snap) => {
+    snap.docChanges().forEach(async (change) => {
+      if (change.type === "added") {
+        try {
+          const candidateData = change.doc.data();
+          await pc.addIceCandidate(new RTCIceCandidate(candidateData));
+        } catch (e) {}
+      }
+    });
+  });
+}
+
+function attachRemoteStreamToStage(peerUid, remoteStream, peerData) {
+  let audioEl = remoteAudioElements[peerUid];
+  if (!audioEl) {
+    audioEl = new Audio();
+    audioEl.autoplay = true;
+    audioEl.id = `remote-audio-${peerUid}`;
+    document.body.appendChild(audioEl);
+    remoteAudioElements[peerUid] = audioEl;
+  }
+  audioEl.srcObject = remoteStream;
+  audioEl.muted = isDeafened;
+
+  let tile = document.getElementById(`remote-tile-${peerUid}`);
+  const stageGrid = document.getElementById("stage-grid");
+  if (!tile && stageGrid) {
+    tile = document.createElement("div");
+    tile.className = "participant-tile";
+    tile.id = `remote-tile-${peerUid}`;
+    stageGrid.appendChild(tile);
+  }
+
+  const hasVideo = remoteStream.getVideoTracks().length > 0 && remoteStream.getVideoTracks()[0].enabled;
+  const initial = (peerData.displayName?.[0] || 'U').toUpperCase();
+
+  tile.innerHTML = `
+    <video id="remote-video-${peerUid}" class="stage-video" autoplay playsinline style="${hasVideo ? 'display:block;' : 'display:none;'}"></video>
+    <div class="participant-avatar" id="remote-avatar-${peerUid}" style="${hasVideo ? 'display:none;' : 'display:flex;'}">
+      ${peerData.photoURL
+        ? `<img src="${escapeHtml(peerData.photoURL)}" alt="Avatar">`
+        : `<span>${initial}</span>`
+      }
+    </div>
+    <div class="participant-tag">
+      <span>${escapeHtml(peerData.displayName || 'Member')}</span>
+      <span id="remote-mic-${peerUid}">${peerData.isMuted ? '🔇' : '🎙️'}</span>
+    </div>
+  `;
+
+  if (hasVideo) {
+    const vidEl = tile.querySelector(`#remote-video-${peerUid}`);
+    if (vidEl) vidEl.srcObject = remoteStream;
+  }
+}
+
+function updateRemotePeerTile(peerData) {
+  const tile = document.getElementById(`remote-tile-${peerData.uid}`);
+  if (!tile) return;
+  const micSpan = tile.querySelector(`#remote-mic-${peerData.uid}`);
+  if (micSpan) micSpan.innerText = peerData.isMuted ? '🔇' : '🎙️';
+}
+
+function removeRemotePeer(peerUid) {
+  if (peerConnections[peerUid]) {
+    try { peerConnections[peerUid].close(); } catch (e) {}
+    delete peerConnections[peerUid];
+  }
+  if (remoteAudioElements[peerUid]) {
+    try {
+      remoteAudioElements[peerUid].pause();
+      remoteAudioElements[peerUid].remove();
+    } catch (e) {}
+    delete remoteAudioElements[peerUid];
+  }
+  delete peerRemoteStreams[peerUid];
+  const tile = document.getElementById(`remote-tile-${peerUid}`);
+  if (tile) tile.remove();
+}
 
 window.toggleE2EE = function() {
   isE2EEActive = !isE2EEActive;
